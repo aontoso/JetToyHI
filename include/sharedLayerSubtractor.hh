@@ -11,7 +11,7 @@
 #include <numeric>
 
 // Add root libraries for plotting
-#include "treeWriter.hh"
+
 #include "TFile.h"
 #include "TTree.h"
 #include "TROOT.h"
@@ -120,8 +120,10 @@ public :
     //Write the rho values for each jet in a tree
     TFile *f = new TFile("rho_dist.root", "RECREATE");
     double rho_value = 0;
+    double ptd_value = 0;
     TTree *rho_dist = new TTree("rho_dist", "N1");
     rho_dist->Branch("rho_value", &rho_value, "rho_value/D");
+    rho_dist->Branch("ptd_value", &ptd_value, "ptd_value/D");
     for(fastjet::PseudoJet& jet : bkgd_jets) {
        rho_value= jet.pt()/jet.area();
     //  trw.addCollection("rho", prueba);
@@ -129,10 +131,6 @@ public :
   //  std::cout << jet.pt()/jet.area() << std::endl;
     //std::cout << jet.area() << std::endl;
   }
-  rho_dist->Scan();
-  rho_dist->Write();
-  f->Write();
-  f->Close();
 
     fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_def_bkgd, area_def_bkgd);
     bkgd_estimator.set_particles(fjInputs_);
@@ -152,8 +150,13 @@ public :
     //----------------------------------------------------------
     std::vector<double> pTD_bkgd;
     for(fastjet::PseudoJet& jet : bkgd_jets) {
+      ptd_value = pTD_.result(jet);
+      rho_dist->Fill();
       pTD_bkgd.push_back(pTD_.result(jet));
     }
+    rho_dist->Write();
+    f->Write();
+    f->Close();
     std::nth_element(pTD_bkgd.begin(), pTD_bkgd.begin() + pTD_bkgd.size()/2, pTD_bkgd.end()); // place the numbers in value order
     double med_pTD = pTD_bkgd[pTD_bkgd.size()/2]; // find the middle
 
@@ -169,8 +172,8 @@ public :
     pTDbkg_ = med_pTD; // median of the background
     pTDbkgSigma_ = rms_pTD; // rms of the background
 
-  //  std::cout << "pTDbkg: " << pTDbkg_ << "  pTDbkgSigma: " << pTDbkgSigma_ << std::endl;
-
+   std::cout << "pTDbkg: " << pTDbkg_ << "  pTDbkgSigma: " << pTDbkgSigma_ << std::endl;
+// up to here understood
     std::mt19937 rndSeed(rd_()); //rnd number generator seed
 
     std::vector<fastjet::PseudoJet> subtracted_jets;
