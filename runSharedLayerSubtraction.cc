@@ -25,6 +25,7 @@ using namespace fastjet;
 // ./runSharedLayerSubtraction -hard  /eos/project/j/jetquenching/JetWorkshop2017/samples/pythia8/dijet120/PythiaEventsTune14PtHat120_0.pu14 -pileup  /eos/project/j/jetquenching/JetWorkshop2017/samples/thermal/Mult7000/ThermalEventsMult7000PtAv1.20_0.pu14 -nev 10
 
 // MV local: ./runSharedLayerSubtraction -hard /Users/mverweij/mnt/eos/project/j/jetquenching/JetWorkshop2017/samples/pythia8/dijet120/PythiaEventsTune14PtHat120_0.pu14 -pileup /Users/mverweij/mnt/eos/project/j/jetquenching/JetWorkshop2017/samples/thermal/Mult7000/ThermalEventsMult7000PtAv1.20_0.pu14 -nev 10
+// ASO local: ./runSharedLayerSubtraction -hard /Users/albasotoontoso/Work/Jet_substraction/JetToyHI/samples/PythiaEventsTune14PtHat120.pu14 -pileup /Users/albasotoontoso/Work/Jet_substraction/JetToyHI/samples/ThermalEventsMult12000PtAv0.70.pu14 -nev 10
 
 int main (int argc, char ** argv) {
 
