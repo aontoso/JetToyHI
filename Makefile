@@ -11,11 +11,11 @@ FFLAGS = -Wall -O2
 CXXFLAGS += -std=c++11
 LDFLAGS += -std=c++11
 
-FJCONFIG = /Users/mverweij/soft/fastjet330-install/bin/fastjet-config
+FJCONFIG = /Users/albasotoontoso/Work/Jet_substraction/fastjet-3.3.1/../fastjet-install/bin/fastjet-config
 INCLUDE += `$(FJCONFIG) --cxxflags`
 LIBRARIES  += `$(FJCONFIG) --libs --plugins` -lfastjetcontribfragile
 
-PYTHIA8LOCATION = /Users/mverweij/soft/pythia8235
+PYTHIA8LOCATION = /Users/albasotoontoso/Work/Jet_substraction/pythia8235
 INCLUDE += -I$(PYTHIA8LOCATION)/include
 LIBRARIES  += -L$(PYTHIA8LOCATION)/lib -lpythia8
 LIBRARIES += -L/usr/local/Cellar/gsl/2.5/lib -lgsl -lgslcblas
