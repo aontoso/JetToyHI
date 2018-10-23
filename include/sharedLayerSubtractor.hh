@@ -38,9 +38,9 @@ private :
   double rhoSigma_;
   double pTDbkg_;
   double pTDbkgSigma_;
-  
+
   Angularity pTD_;
-  
+
   std::vector<fastjet::PseudoJet> fjInputs_;
   std::vector<fastjet::PseudoJet> fjJetInputs_;
 
@@ -49,7 +49,7 @@ private :
   std::random_device rd_;
   int nInitCond_;
   int nTopInit_;
-    
+
 public :
   sharedLayerSubtractor(double rJet = 0.4,
                         double ghostArea = 0.001,
@@ -96,12 +96,12 @@ public :
     fastjet::AreaDefinition area_def = fastjet::AreaDefinition(fastjet::active_area_explicit_ghosts,ghost_spec);
 
     fastjet::ClusterSequenceArea cs(fjInputs_, jet_def, area_def);
-    fastjet::Selector jet_selector = SelectorAbsRapMax(jetRapMax_);
+    fastjet::Selector jet_selector = SelectorAbsRapMax(jetRapMax_); // Keep jets with abs(y)<3
     jets = fastjet::sorted_by_pt(jet_selector(cs.inclusive_jets()));
 
     fastjet::JetDefinition jet_defSub(antikt_algorithm, 999.);
     fastjet::ClusterSequenceArea csSub(fjInputs_, jet_defSub, area_def);
-    
+
     // create what we need for the background estimation
     //----------------------------------------------------------
     fastjet::JetDefinition jet_def_bkgd(fastjet::kt_algorithm, 0.4);
@@ -110,18 +110,18 @@ public :
 
     fastjet::ClusterSequenceArea csKt(fjInputs_, jet_def_bkgd, area_def_bkgd);
     std::vector<fastjet::PseudoJet> bkgd_jets = fastjet::sorted_by_pt(selector(csKt.inclusive_jets()));
-    
+
     fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_def_bkgd, area_def_bkgd);
     bkgd_estimator.set_particles(fjInputs_);
     bkgd_estimator.set_jets(bkgd_jets);
-    
+
     rho_ = bkgd_estimator.rho();
     rhoSigma_ = bkgd_estimator.sigma();
 
     if(rho_ < 0)    rho_ = 0;
 
     //std::cout << "rho: " << rho_ << "  rhoSigma: " << rhoSigma_ << std::endl;
-    
+
     //initial gaus with mean=rho_ and width=rhoSigma_
     std::normal_distribution<> gausDist(rho_, rhoSigma_);
 
@@ -147,7 +147,7 @@ public :
     pTDbkgSigma_ = rms_pTD;
 
     std::mt19937 rndSeed(rd_()); //rnd number generator seed
-           
+
     std::vector<fastjet::PseudoJet> subtracted_jets;
     subtracted_jets.reserve(jets.size());
     int ijet = -1;
@@ -156,13 +156,13 @@ public :
       if(jet.is_pure_ghost()) continue;
       //      if(ijet>0) continue;
       //std::cout << "start jet loop. entry: " << ijet << "/" << jets.size() << " pt: " << jet.pt() << " eta: " << jet.eta() << std::endl;
-      
+
       //get ghosts and true particles (ghosts are distributed uniformly which we will use to create initial conditions)
       //----------------------------------------------------------
       std::vector<fastjet::PseudoJet> particles, ghosts;
       fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
       if(particles.size()<1 || jet.pt()<1.) continue;
-      
+
       //set user_index of all particles to position particles vector
       for(int i = 0; i<(int)particles.size(); ++i) {
         particles[i].set_user_index(i);
@@ -174,7 +174,7 @@ public :
         std::vector<int> ipSel = findClosestParticles(particles, ighost, ghosts, 5);
         closestPartToGhost.push_back(ipSel);
       }
-      
+
       // create requested number of initial conditions
       //----------------------------------------------------------
       std::vector<std::vector<int>> collInitCond;
@@ -189,13 +189,13 @@ public :
         std::vector<fastjet::PseudoJet> particlesNotUsed = particles;
 
         std::vector<std::vector<int>> closestPartToGhostNotUsed = closestPartToGhost;
-        
+
         double maxPtCurrent = 0.;
         std::vector<int> avail(closestPartToGhost.size());
         std::fill(avail.begin(),avail.end(),1);
         while(maxPtCurrent<maxPt && std::accumulate(avail.begin(),avail.end(),0)>0 ) {
           //std::cout << "avail: " << std::accumulate(avail.begin(),avail.end(),0) << std::endl;
-          
+
           //pick random ghost
           int ighost = int(std::floor(distUni(rndSeed)));
           if(ighost>=ghosts.size()) continue;
@@ -207,7 +207,7 @@ public :
             closestPartToGhostNotUsed[ighost].erase(closestPartToGhostNotUsed[ighost].begin()+0);
           } else
             continue;
-          
+
           fastjet::PseudoJet partSel = particles[ipSel];
           initCondition.push_back(partSel.user_index());
           maxPtCurrent+=partSel.pt();
@@ -217,14 +217,14 @@ public :
           collInitCond.push_back(initCondition); //avoid putting in a initial condition for which not enough particles were available anymore to get to the required pT. Might be an issue for sparse events.
         }
       }//initial conditions loop
-         
+
       //----------------------------------------------------------
       //Now we have the requested number of random initial condition
-      
+
       //Next step: calc chi2 for each initial condition
       //----------------------------------------------------------
       std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_pTD, rms_pTD);
-      
+
       //sort the chi2s keeping track of indices
       //----------------------------------------------------------
       // initialize original index locations
@@ -235,7 +235,7 @@ public :
       std::sort(idx.begin(), idx.end(),
                 [&chi2s](size_t i1, size_t i2) {return chi2s[i1] < chi2s[i2];});
 
-            
+
       //Next step: figure out how often each particle is shared in nTopInit_ initial conditions
       //----------------------------------------------------------
       std::vector<int> share_idx(particles.size(),0);
@@ -246,7 +246,7 @@ public :
           share_idx[particles[indices[ic]].user_index()]++;
         }
       }
-      
+
       //sort according to how often a particle is shared
       //----------------------------------------------------------
       // initialize original index locations
@@ -255,15 +255,15 @@ public :
       std::sort(ish.begin(), ish.end(),
                 [&share_idx](size_t i1, size_t i2) {return share_idx[i1] > share_idx[i2];});
 
-      
+
       //create final UE object
       //----------------------------------------------------------
       double maxPtFinalUE = gausDist(rndSeed)*jet.area();
       double curPtFinalUE = 0.;
       std::vector<fastjet::PseudoJet> bkgd_particles;
-      fjJetParticles_.clear();            
+      fjJetParticles_.clear();
       for(auto userIndex : ish) {
-        fastjet::PseudoJet part = particles[userIndex]; 
+        fastjet::PseudoJet part = particles[userIndex];
         if(curPtFinalUE<maxPtFinalUE) { //assign as bkgd particle
           curPtFinalUE+=part.pt();
           bkgd_particles.push_back(part);
@@ -311,7 +311,7 @@ public :
     fastjet::PseudoJet partSel;
     std::vector<int> ipSel(nClosest);
     std::fill(ipSel.begin(), ipSel.end(), -1);
-    
+
     for(int ip = 0; ip<(int)particles.size(); ++ip) {
       fastjet::PseudoJet part = particles[ip];
       double dR2Cur = ghosts[ighost].squared_distance(part);
@@ -335,7 +335,7 @@ public :
     for(int i = 0; i<nClosest; ++i) {
       ipSelSorted[i] = ipSel[idx[i]];
     }
-    
+
     return ipSelSorted;
   }
 
@@ -347,7 +347,7 @@ public :
     for(int ii = 0; ii<collInitCond.size(); ++ii) {
       std::vector<int> indices = collInitCond[ii];
       double chi2 = 1e6;
-      if(indices.size()>0) { 
+      if(indices.size()>0) {
         std::vector<fastjet::PseudoJet> combinedparticles;
         for(int ic = 0; ic<(int)indices.size(); ++ic) {
           combinedparticles.push_back(particles[indices[ic]]);
@@ -360,7 +360,7 @@ public :
     }
     return chi2s;
   }
-  
+
 };
 
 #endif
