@@ -53,7 +53,7 @@ azul = TColor::GetColor("#034F84");
 Int_t rojo;
 rojo = TColor::GetColor("#B93A32");
 h_ptd->GetXaxis()->SetTitle("p_{TD}");
-h_ptd->GetYaxis()->SetTitle("P(p_{TD})");
+h_ptd->GetYaxis()->SetTitle("#frac{1}{N}#frac{dN}{dp_{TD}}");
 h_ptd->SetTitle("");
 h_ptd->GetYaxis()->SetLabelSize(0.04);
 h_ptd->GetXaxis()->SetLabelSize(0.04);
