@@ -40,6 +40,9 @@ private :
   double pTDbkgSigma_;
 
   Angularity pTD_;
+  Angularity mass_;
+  Angularity multiplicity_;
+  Angularity width_;
 
   std::vector<fastjet::PseudoJet> fjInputs_;
   std::vector<fastjet::PseudoJet> fjJetInputs_;
@@ -65,6 +68,9 @@ public :
     nTopInit_(nTopInit)
   {
     pTD_ = Angularity(0.,2.,0.4);
+    multiplicity_ = Angularity(0.,0.,0.4);
+    mass_ = Angularity(2.,1.,0.4);
+    width_ = Angularity(1.,1.,0.4);
   }
 
   void setGhostArea(double a) { ghostArea_ = a; }
@@ -181,7 +187,6 @@ public :
       for(int ii = 0; ii<nInitCond_; ++ii) {
         std::uniform_int_distribution<> distUni(0,ghosts.size()-1); //uniform distribution of ghosts in vector
         std::vector<int> initCondition;                           //list of particles in initial condition
-
         //get random maxPt for this initial condition
         double maxPt = gausDist(rndSeed)*jet.area();
 
@@ -193,7 +198,7 @@ public :
         double maxPtCurrent = 0.;
         std::vector<int> avail(closestPartToGhost.size());
         std::fill(avail.begin(),avail.end(),1);
-        while(maxPtCurrent<maxPt && std::accumulate(avail.begin(),avail.end(),0)>0 ) {
+        while(maxPtCurrent<=maxPt && std::accumulate(avail.begin(),avail.end(),0)>0 ) {
           //std::cout << "avail: " << std::accumulate(avail.begin(),avail.end(),0) << std::endl;
 
           //pick random ghost
@@ -211,11 +216,25 @@ public :
           fastjet::PseudoJet partSel = particles[ipSel];
           initCondition.push_back(partSel.user_index());
           maxPtCurrent+=partSel.pt();
-          //std::cout << "Added new particle with pt = " << partSel.pt() << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt << std::endl;
+          if (ijet == 0 && ii == 0) {std::cout << "Added new particle with pt = " << partSel.pt() << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt << std::endl;}
         }
-        if(maxPtCurrent>maxPt) {
+        if(maxPtCurrent>=maxPt) {
+          if (ijet == 0 && ii == 0){
+          int initConditionSize_ = initCondition.size();
+          double maxPtPrevious = 0;
+          std::vector<fastjet::PseudoJet> initCondParticles;
+          for(int ic = 0; ic<initConditionSize_-1; ++ic) {
+            initCondParticles.push_back(particles[initCondition[ic]]);
+            //initConditionPrevious.push_back(initCondParticles);
+             maxPtPrevious+=initCondParticles.at(ic).pt();
+          }
+          double distance_one = sqrt((maxPt-maxPtCurrent)*(maxPt-maxPtCurrent));
+          double distance_two = sqrt((maxPt-maxPtPrevious)*(maxPt-maxPtPrevious));
+          if (distance_one > distance_two) initCondition.pop_back();
+
           collInitCond.push_back(initCondition); //avoid putting in a initial condition for which not enough particles were available anymore to get to the required pT. Might be an issue for sparse events.
         }
+      }
       }//initial conditions loop
 
       //----------------------------------------------------------
@@ -224,6 +243,25 @@ public :
       //Next step: calc chi2 for each initial condition
       //----------------------------------------------------------
       std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_pTD, rms_pTD);
+
+      // Let's check how does the chi2s looks like
+      //if (ijet == 0) {
+      //  TFile *f = new TFile("chi2s_dist_1jet.root", "RECREATE");
+    //    double chi2s_value = 0;
+        //  double ptd_value = 0;
+    //    TTree *chi2s_dist = new TTree("chi2s_dist", "N1");
+    //    chi2s_dist->Branch("chi2s_value", &chi2s_value, "chi2s_value/D");
+    //   for(int ii = 0; ii<nInitCond_; ++ii) {
+    //      chi2s_value = chi2s.at(ii);
+  //        chi2s_dist ->Fill();
+  //     }
+    //   chi2s_dist->Write();
+  //     chi2s_dist->Scan();
+  //      f->Write();
+  //     f->Close();
+  //   }
+
+
 
       //sort the chi2s keeping track of indices
       //----------------------------------------------------------
