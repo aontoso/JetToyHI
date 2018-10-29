@@ -48,10 +48,14 @@ private :
   std::vector<fastjet::PseudoJet> fjJetInputs_;
 
   std::vector<fastjet::PseudoJet> fjJetParticles_;
+  std::vector<std::vector<double>> fChi2s_;
+  std::vector<std::vector<int>> fShare_;
 
   std::random_device rd_;
   int nInitCond_;
   int nTopInit_;
+
+  fastjet::ClusterSequenceArea *csJetSub;
 
 public :
   sharedLayerSubtractor(double rJet = 0.4,
@@ -68,9 +72,7 @@ public :
     nTopInit_(nTopInit)
   {
     pTD_ = Angularity(0.,2.,0.4);
-    multiplicity_ = Angularity(0.,0.,0.4);
-    mass_ = Angularity(2.,1.,0.4);
-    width_ = Angularity(1.,1.,0.4);
+
   }
 
   void setGhostArea(double a) { ghostArea_ = a; }
@@ -83,6 +85,14 @@ public :
 
   double getPTDBkg() const { return pTDbkg_; }
   double getPTDBkgSigma() const { return pTDbkgSigma_; }
+
+  std::vector<std::vector<double>> getChi2s() const { return fChi2s_; }
+  std::vector<std::vector<int>> getNShared() const { return fShare_; }
+  void clearMemory() {
+  fChi2s_.clear();
+  fShare_.clear();
+  if(csJetSub) delete csJetSub;
+}
 
   std::vector<fastjet::PseudoJet> doSubtraction() {
 
@@ -129,7 +139,7 @@ public :
     //std::cout << "rho: " << rho_ << "  rhoSigma: " << rhoSigma_ << std::endl;
 
     //initial gaus with mean=rho_ and width=rhoSigma_
-    std::normal_distribution<> gausDist(rho_, rhoSigma_);
+  //  std::normal_distribution<> gausDist(rho_, rhoSigma_);
 
     //UE metric
     //----------------------------------------------------------
@@ -188,7 +198,8 @@ public :
         std::uniform_int_distribution<> distUni(0,ghosts.size()-1); //uniform distribution of ghosts in vector
         std::vector<int> initCondition;                           //list of particles in initial condition
         //get random maxPt for this initial condition
-        double maxPt = gausDist(rndSeed)*jet.area();
+      //  double maxPt = gausDist(rndSeed)*jet.area();
+        double maxPt = rho_*jet.area();
 
         //make copy of particles so that a particle is not repeated inside the same initial condition
         std::vector<fastjet::PseudoJet> particlesNotUsed = particles;
@@ -216,16 +227,15 @@ public :
           fastjet::PseudoJet partSel = particles[ipSel];
           initCondition.push_back(partSel.user_index());
           maxPtCurrent+=partSel.pt();
-          if (ijet == 0 && ii == 0) {std::cout << "Added new particle with pt = " << partSel.pt() << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt << std::endl;}
+      //    if (ijet == 0 && ii == 0) {std::cout << "Added new particle with pt = " << partSel.pt() << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt << std::endl;}
         }
         if(maxPtCurrent>=maxPt) {
-          if (ijet == 0 && ii == 0){
-          int initConditionSize_ = initCondition.size();
-          double maxPtPrevious = 0;
-          std::vector<fastjet::PseudoJet> initCondParticles;
+        //  if (ijet == 0 && ii == 0){
+         int initConditionSize_ = initCondition.size();
+         double maxPtPrevious = 0;
+         std::vector<fastjet::PseudoJet> initCondParticles;
           for(int ic = 0; ic<initConditionSize_-1; ++ic) {
             initCondParticles.push_back(particles[initCondition[ic]]);
-            //initConditionPrevious.push_back(initCondParticles);
              maxPtPrevious+=initCondParticles.at(ic).pt();
           }
           double distance_one = sqrt((maxPt-maxPtCurrent)*(maxPt-maxPtCurrent));
@@ -233,8 +243,8 @@ public :
           if (distance_one > distance_two) initCondition.pop_back();
 
           collInitCond.push_back(initCondition); //avoid putting in a initial condition for which not enough particles were available anymore to get to the required pT. Might be an issue for sparse events.
+        //}
         }
-      }
       }//initial conditions loop
 
       //----------------------------------------------------------
@@ -243,6 +253,8 @@ public :
       //Next step: calc chi2 for each initial condition
       //----------------------------------------------------------
       std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_pTD, rms_pTD);
+
+       fChi2s_.push_back(chi2s);
 
       // Let's check how does the chi2s looks like
       //if (ijet == 0) {
@@ -284,7 +296,7 @@ public :
           share_idx[particles[indices[ic]].user_index()]++;
         }
       }
-
+      fShare_.push_back(share_idx);
       //sort according to how often a particle is shared
       //----------------------------------------------------------
       // initialize original index locations
@@ -311,10 +323,11 @@ public :
       }
 
       if(fjJetParticles_.size()>0) {
-        fastjet::ClusterSequenceArea *csSub = new fastjet::ClusterSequenceArea(fjJetParticles_, jet_defSub, area_def);
-        std::vector<fastjet::PseudoJet> jetSub = fastjet::sorted_by_pt(csSub->inclusive_jets());
+        csJetSub = new fastjet::ClusterSequenceArea(fjJetParticles_, jet_defSub, area_def);
+        std::vector<fastjet::PseudoJet> jetSub = fastjet::sorted_by_pt(csJetSub->inclusive_jets());
         if(jetSub[0].pt()>0.) subtracted_jets.push_back(jetSub[0]);
-        if(subtracted_jets.size()>0 && subtracted_jets.size()<2) csSub->delete_self_when_unused();
+        //if(subtracted_jets.size()>0 && subtracted_jets.size()<2)
+        csJetSub->delete_self_when_unused();
       }
     }//jet loop
 
