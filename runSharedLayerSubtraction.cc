@@ -30,7 +30,7 @@ using namespace fastjet;
 int main (int argc, char ** argv) {
 
   auto start_time = std::chrono::steady_clock::now();
-  
+
   CmdLine cmdline(argc,argv);
   // inputs read from command line
   int nEvent = cmdline.value<int>("-nev",1);  // first argument: command line option; second argument: default value
@@ -58,7 +58,7 @@ int main (int argc, char ** argv) {
 
   //Angularity width(1.,1.,R);
   //Angularity pTD(0.,2.,R);
-    
+
   ProgressBar Bar(cout, nEvent);
   Bar.SetStyle(-1);
 
@@ -69,7 +69,7 @@ int main (int argc, char ** argv) {
   unsigned int entryDiv = (nEvent > 200) ? nEvent / 200 : 1;
   while ( mixer.next_event() && iev < nEvent )
   {
-    // increment event number    
+    // increment event number
     iev++;
 
     Bar.Update(iev);
@@ -84,11 +84,11 @@ int main (int argc, char ** argv) {
     // cluster hard event only
     std::vector<fastjet::PseudoJet> particlesBkg, particlesSig;
     SelectorIsHard().sift(particlesMerged, particlesSig, particlesBkg); // this sifts the full event into two vectors of PseudoJet, one for the hard event, one for the underlying event
-    
+
     //---------------------------------------------------------------------------
     //   jet clustering
     //---------------------------------------------------------------------------
-    
+
     // run the clustering, extract the signal jets
     fastjet::ClusterSequenceArea csSig(particlesSig, jet_def, area_def);
     jetCollection jetCollectionSig(sorted_by_pt(jet_selector(csSig.inclusive_jets(10.))));
@@ -96,11 +96,23 @@ int main (int argc, char ** argv) {
     // run the clustering, extract the unsubtracted jets
     ClusterSequenceArea csMerged(particlesMerged, jet_def, area_def);
     jetCollection jetCollectionMerged(sorted_by_pt(jet_selector(csMerged.inclusive_jets())));
-    
+
+    // run the clustering, extract the estimated background jets
+    fastjet::JetDefinition jet_def_bkgd(fastjet::kt_algorithm, 0.4);
+    fastjet::AreaDefinition area_def_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
+    fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax-0.4) * (!fastjet::SelectorNHardest(2));
+
+    fastjet::ClusterSequenceArea csKt(particlesMerged, jet_def_bkgd, area_def_bkgd);
+    jetCollection jetCollectionSLBkg(sorted_by_pt(selector(csKt.inclusive_jets())));
+
+    // run the clustering, extract the bkg jets
+    fastjet::ClusterSequenceArea csBkg(particlesBkg, jet_def_bkgd, area_def_bkgd);
+      fastjet::Selector bkg_selector = fastjet::SelectorAbsRapMax(jetRapMax-0.4);
+    jetCollection jetCollectionBkg(sorted_by_pt(bkg_selector(csBkg.inclusive_jets())));
     //---------------------------------------------------------------------------
     //   background subtraction
     //---------------------------------------------------------------------------
-    
+
     //run jet-by-jet constituent subtraction on mixed (hard+UE) event
     sharedLayerSubtractor sharedLayerSub(R,0.003,ghostRapMax,jetRapMax);
     sharedLayerSub.setInputParticles(particlesMerged);
@@ -108,6 +120,7 @@ int main (int argc, char ** argv) {
 
     std::vector<double> rho;
     rho.push_back(sharedLayerSub.getRho());
+  //  std::cout << rho.push_back(sharedLayerSub.getRho()) << std::endl;
     std::vector<double> rhoSigma;
     rhoSigma.push_back(sharedLayerSub.getRhoSigma());
 
@@ -115,14 +128,14 @@ int main (int argc, char ** argv) {
     pTDBkg.push_back(sharedLayerSub.getPTDBkg());
     std::vector<double> pTDBkgSigma;
     pTDBkgSigma.push_back(sharedLayerSub.getPTDBkgSigma());
-    
+
     //match the subtracted jets to signal jets
     jetMatcher jmCS(R);
     jmCS.setBaseJets(jetCollectionSL);
     jmCS.setTagJets(jetCollectionSig);
     jmCS.matchJets();
     jmCS.reorderedToTag(jetCollectionSL);
-  
+
 
     //match the unsubtracted jets to signal jets
     jetMatcher jmUnSub(R);
@@ -135,13 +148,13 @@ int main (int argc, char ** argv) {
     //---------------------------------------------------------------------------
     //   write tree
     //---------------------------------------------------------------------------
-    
+
     //Give variable we want to write out to treeWriter.
     //Only vectors of the types 'jetCollection', and 'double', 'int', 'fastjet::PseudoJet' are supported
 
-    trw.addCollection("sigJet",        jetCollectionSig, true);
-    trw.addCollection("slJet",         jetCollectionSL,  true);
-    
+     trw.addCollection("sigJet",        jetCollectionSig, true);
+     trw.addCollection("slJet",         jetCollectionSL,  true);
+
     trw.addCollection("rho",           rho);
     trw.addCollection("rhoSigma",      rhoSigma);
 
@@ -149,9 +162,11 @@ int main (int argc, char ** argv) {
     trw.addCollection("pTDBkgSigma",   pTDBkgSigma);
 
     trw.addCollection("unsubJet",      jetCollectionMerged, true);
-    
+    trw.addCollection("bkgJet",        jetCollectionBkg, true); // real background
+    trw.addCollection("slbkgJet",      jetCollectionSLBkg, true); // estimated background
+
     trw.addCollection("eventWeight",   eventWeight);
-        
+
     trw.fillTree();
 
   }//event loop
@@ -161,9 +176,10 @@ int main (int argc, char ** argv) {
   Bar.PrintLine();
 
   TTree *trOut = trw.getTree();
-
+  //Write the rho values for each jet in a tree
   TFile *fout = new TFile("JetToyHIResultSharedLayers.root","RECREATE");
   trOut->Write();
+  //trOut->Scan();
   fout->Write();
   fout->Close();
 
