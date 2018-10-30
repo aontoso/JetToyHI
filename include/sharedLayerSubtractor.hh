@@ -209,7 +209,7 @@ public :
         double maxPtCurrent = 0.;
         std::vector<int> avail(closestPartToGhost.size());
         std::fill(avail.begin(),avail.end(),1);
-        while(maxPtCurrent<=maxPt && std::accumulate(avail.begin(),avail.end(),0)>0 ) {
+        while(maxPtCurrent<maxPt && std::accumulate(avail.begin(),avail.end(),0)>0 ) {
           //std::cout << "avail: " << std::accumulate(avail.begin(),avail.end(),0) << std::endl;
 
           //pick random ghost
@@ -229,17 +229,17 @@ public :
           maxPtCurrent+=partSel.pt();
       //    if (ijet == 0 && ii == 0) {std::cout << "Added new particle with pt = " << partSel.pt() << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt << std::endl;}
         }
-        if(maxPtCurrent>=maxPt) {
+        if(maxPtCurrent>maxPt) {
         //  if (ijet == 0 && ii == 0){
          int initConditionSize_ = initCondition.size();
-         double maxPtPrevious = 0;
+         double maxPtPrev = 0;
          std::vector<fastjet::PseudoJet> initCondParticles;
           for(int ic = 0; ic<initConditionSize_-1; ++ic) {
             initCondParticles.push_back(particles[initCondition[ic]]);
-             maxPtPrevious+=initCondParticles.at(ic).pt();
+             maxPtPrev+=initCondParticles.at(ic).pt();
           }
           double distance_one = sqrt((maxPt-maxPtCurrent)*(maxPt-maxPtCurrent));
-          double distance_two = sqrt((maxPt-maxPtPrevious)*(maxPt-maxPtPrevious));
+          double distance_two = sqrt((maxPt-maxPtPrev)*(maxPt-maxPtPrev));
           if (distance_one > distance_two) initCondition.pop_back();
 
           collInitCond.push_back(initCondition); //avoid putting in a initial condition for which not enough particles were available anymore to get to the required pT. Might be an issue for sparse events.
@@ -255,23 +255,6 @@ public :
       std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_pTD, rms_pTD);
 
        fChi2s_.push_back(chi2s);
-
-      // Let's check how does the chi2s looks like
-      //if (ijet == 0) {
-      //  TFile *f = new TFile("chi2s_dist_1jet.root", "RECREATE");
-    //    double chi2s_value = 0;
-        //  double ptd_value = 0;
-    //    TTree *chi2s_dist = new TTree("chi2s_dist", "N1");
-    //    chi2s_dist->Branch("chi2s_value", &chi2s_value, "chi2s_value/D");
-    //   for(int ii = 0; ii<nInitCond_; ++ii) {
-    //      chi2s_value = chi2s.at(ii);
-  //        chi2s_dist ->Fill();
-  //     }
-    //   chi2s_dist->Write();
-  //     chi2s_dist->Scan();
-  //      f->Write();
-  //     f->Close();
-  //   }
 
 
 
@@ -308,19 +291,33 @@ public :
 
       //create final UE object
       //----------------------------------------------------------
-      double maxPtFinalUE = gausDist(rndSeed)*jet.area();
+      double maxPtFinalUE = rho_*jet.area();
       double curPtFinalUE = 0.;
+      double prevPtFinalUE = 0.;
       std::vector<fastjet::PseudoJet> bkgd_particles;
       fjJetParticles_.clear();
       for(auto userIndex : ish) {
         fastjet::PseudoJet part = particles[userIndex];
-        if(curPtFinalUE<maxPtFinalUE) { //assign as bkgd particle
+       if(curPtFinalUE<maxPtFinalUE) { //assign as bkgd particle
           curPtFinalUE+=part.pt();
           bkgd_particles.push_back(part);
-        } else { //assign as jet particle
-          fjJetParticles_.push_back(part);
         }
+       else {fjJetParticles_.push_back(part);}
       }
+      int bkgd_particles_size = bkgd_particles.size();
+      fastjet::PseudoJet last_bkg_part = bkgd_particles.at(bkgd_particles_size-1);
+
+      for(int ipart = 0; ipart<bkgd_particles_size-1; ++ipart){
+       prevPtFinalUE+=bkgd_particles.at(ipart).pt();
+      }
+      // Decide what is a better aproximation
+
+      double distanceUE_one = sqrt((maxPtFinalUE-curPtFinalUE)*(maxPtFinalUE-curPtFinalUE));
+      double distanceUE_two = sqrt((maxPtFinalUE-prevPtFinalUE)*(maxPtFinalUE-prevPtFinalUE));
+
+      if (distanceUE_one > distanceUE_two)
+      { fjJetParticles_.push_back(last_bkg_part); // add the last particle from the background to the signal
+        bkgd_particles.pop_back();} // remove the last particle from the bacground
 
       if(fjJetParticles_.size()>0) {
         csJetSub = new fastjet::ClusterSequenceArea(fjJetParticles_, jet_defSub, area_def);
