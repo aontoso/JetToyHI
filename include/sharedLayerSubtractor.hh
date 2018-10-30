@@ -134,7 +134,7 @@ public :
     rho_ = bkgd_estimator.rho();
     rhoSigma_ = bkgd_estimator.sigma();
 
-    if(rho_ < 0)    rho_ = 0;
+    if(rho_ < 0)   rho_ = 0;
 
     //std::cout << "rho: " << rho_ << "  rhoSigma: " << rhoSigma_ << std::endl;
 
@@ -200,7 +200,6 @@ public :
         //get random maxPt for this initial condition
       //  double maxPt = gausDist(rndSeed)*jet.area();
         double maxPt = rho_*jet.area();
-
         //make copy of particles so that a particle is not repeated inside the same initial condition
         std::vector<fastjet::PseudoJet> particlesNotUsed = particles;
 
@@ -236,7 +235,7 @@ public :
          std::vector<fastjet::PseudoJet> initCondParticles;
           for(int ic = 0; ic<initConditionSize_-1; ++ic) {
             initCondParticles.push_back(particles[initCondition[ic]]);
-             maxPtPrev+=initCondParticles.at(ic).pt();
+            maxPtPrev+=initCondParticles.at(ic).pt();
           }
           double distance_one = sqrt((maxPt-maxPtCurrent)*(maxPt-maxPtCurrent));
           double distance_two = sqrt((maxPt-maxPtPrev)*(maxPt-maxPtPrev));
@@ -255,8 +254,6 @@ public :
       std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_pTD, rms_pTD);
 
        fChi2s_.push_back(chi2s);
-
-
 
       //sort the chi2s keeping track of indices
       //----------------------------------------------------------
@@ -304,8 +301,9 @@ public :
         }
        else {fjJetParticles_.push_back(part);}
       }
+      if(bkgd_particles.size()>0){
       int bkgd_particles_size = bkgd_particles.size();
-      fastjet::PseudoJet last_bkg_part = bkgd_particles.at(bkgd_particles_size-1);
+     fastjet::PseudoJet last_bkg_part = bkgd_particles.at(bkgd_particles_size-1);
 
       for(int ipart = 0; ipart<bkgd_particles_size-1; ++ipart){
        prevPtFinalUE+=bkgd_particles.at(ipart).pt();
@@ -318,6 +316,7 @@ public :
       if (distanceUE_one > distanceUE_two)
       { fjJetParticles_.push_back(last_bkg_part); // add the last particle from the background to the signal
         bkgd_particles.pop_back();} // remove the last particle from the bacground
+      }
 
       if(fjJetParticles_.size()>0) {
         csJetSub = new fastjet::ClusterSequenceArea(fjJetParticles_, jet_defSub, area_def);
