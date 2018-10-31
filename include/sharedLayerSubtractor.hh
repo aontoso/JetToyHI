@@ -62,8 +62,8 @@ public :
                         double ghostArea = 0.001,
                         double ghostRapMax = 3.0,
                         double jetRapMax = 3.0,
-                        int nInitCond = 25,
-                        int nTopInit = 5) :
+                        int nInitCond = 100.,
+                        int nTopInit = 10.) :
     jetRParam_(rJet),
     ghostArea_(ghostArea),
     ghostRapMax_(ghostRapMax),
@@ -100,9 +100,10 @@ public :
     //  throw "You didn't give me input jets or particles. You should give me one of the two";
     //  return std::vector<fastjet::PseudoJet>();
     //}
+    auto reclustering_time = std::chrono::steady_clock::now();
 
     fastjet::GhostedAreaSpec ghost_spec(ghostRapMax_, 1, ghostArea_);
-
+    fastjet::GhostedAreaSpec ghost_spec_sub(ghostRapMax_, 1, 1.);
     std::vector<fastjet::PseudoJet> jets = fjJetInputs_;
     //if(jets.size()==0) {
 
@@ -115,8 +116,13 @@ public :
     fastjet::Selector jet_selector = SelectorAbsRapMax(jetRapMax_);
     jets = fastjet::sorted_by_pt(jet_selector(cs.inclusive_jets()));
 
-    fastjet::JetDefinition jet_defSub(antikt_algorithm, 999.);
-    fastjet::ClusterSequenceArea csSub(fjInputs_, jet_defSub, area_def);
+    fastjet::JetDefinition jet_defSub(antikt_algorithm, 20.); // this makes it super slow
+    fastjet::AreaDefinition area_def_sub = fastjet::AreaDefinition(fastjet::active_area_explicit_ghosts,ghost_spec_sub);
+    fastjet::ClusterSequenceArea csSub(fjInputs_, jet_defSub, area_def_sub);
+
+    double timereclustering_in_seconds = std::chrono::duration_cast<std::chrono::milliseconds>
+      (std::chrono::steady_clock::now() - reclustering_time).count() / 1000.0;
+    std::cout << "Re-clustering takes: " << timereclustering_in_seconds << std::endl;
 
     // create what we need for the background estimation
     //----------------------------------------------------------
@@ -130,6 +136,7 @@ public :
     fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_def_bkgd, area_def_bkgd);
     bkgd_estimator.set_particles(fjInputs_);
     bkgd_estimator.set_jets(bkgd_jets);
+
 
     rho_ = bkgd_estimator.rho();
     rhoSigma_ = bkgd_estimator.sigma();
@@ -167,6 +174,8 @@ public :
     std::vector<fastjet::PseudoJet> subtracted_jets;
     subtracted_jets.reserve(jets.size());
     int ijet = -1;
+
+  //  auto jetloop_time = std::chrono::steady_clock::now();
     for(fastjet::PseudoJet& jet : jets) {
       ++ijet;
       if(jet.is_pure_ghost()) continue;
@@ -291,6 +300,7 @@ public :
       double maxPtFinalUE = rho_*jet.area();
       double curPtFinalUE = 0.;
       double prevPtFinalUE = 0.;
+    //  double ptfJet = 0;
       std::vector<fastjet::PseudoJet> bkgd_particles;
       fjJetParticles_.clear();
       for(auto userIndex : ish) {
@@ -318,13 +328,36 @@ public :
         bkgd_particles.pop_back();} // remove the last particle from the bacground
       }
 
-      if(fjJetParticles_.size()>0) {
-        csJetSub = new fastjet::ClusterSequenceArea(fjJetParticles_, jet_defSub, area_def);
+      if(fjJetParticles_.size()>0) { // Why cannot we just define a jet by pushing back the fjJetParticles_?
+      csJetSub = new fastjet::ClusterSequenceArea(fjJetParticles_, jet_defSub, area_def_sub);
         std::vector<fastjet::PseudoJet> jetSub = fastjet::sorted_by_pt(csJetSub->inclusive_jets());
         if(jetSub[0].pt()>0.) subtracted_jets.push_back(jetSub[0]);
-        //if(subtracted_jets.size()>0 && subtracted_jets.size()<2)
+        if(subtracted_jets.size()>0 && subtracted_jets.size()<2)
         csJetSub->delete_self_when_unused();
+        //cout << jetSub.pt() << endl;
       }
+//      cout << subtracted_jets[ijet] << endl;
+//    std::vector<fastjet::PseudoJet> particles2, ghosts2;
+  //    fastjet::SelectorIsPureGhost().sift(subtracted_jets[ijet].constituents(), ghosts2, particles2);
+    //  double ptfJet_ghosts = 0;
+      //vector<PseudoJet> constituents = subtracted_jets[0].constituents();
+      //cout << ghosts2.size() << endl;
+      //for(int ipartjets = 0; ipartjets<particles2.size(); ++ipartjets){
+        // cout << fjJetParticles_[ipartjets].pt()<< endl;
+        //   ptfJet+=particles2[ipartjets].pt();
+        // }
+      //cout << ptfJet+ptfJet_ghosts << endl;
+    //  cout << fjJetParticles_[0].E() << endl;
+  //    for(int ipartjets = 0; ipartjets<fjJetParticles_.size(); ++ipartjets){
+    // cout << fjJetParticles_[ipartjets].pt()<< endl;
+      // ptfJet+=constituents_two.size();
+  //    }
+    //  cout << ptfJet<< endl;
+      //double timetosubstactonejet_in_seconds = //std::chrono::duration_cast<std::chrono::milliseconds>
+        //(std::chrono::steady_clock::now() - jetloop_time).count() / 1000.0;
+    //  std::cout << "One jet substraction takes: " << timetosubstactonejet_in_seconds << std::endl;
+  //  cout << "New Jet" << endl;
+
     }//jet loop
 
     std::cout << "\n n subtracted jets: " << subtracted_jets.size() << std::endl;
