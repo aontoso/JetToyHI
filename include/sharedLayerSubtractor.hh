@@ -40,9 +40,6 @@ private :
   double pTDbkgSigma_;
 
   Angularity pTD_;
-  Angularity mass_;
-  Angularity multiplicity_;
-  Angularity width_;
 
   std::vector<fastjet::PseudoJet> fjInputs_;
   std::vector<fastjet::PseudoJet> fjJetInputs_;
@@ -62,8 +59,8 @@ public :
                         double ghostArea = 0.001,
                         double ghostRapMax = 3.0,
                         double jetRapMax = 3.0,
-                        int nInitCond = 100.,
-                        int nTopInit = 10.) :
+                        int nInitCond = 25.,
+                        int nTopInit = 5.) :
     jetRParam_(rJet),
     ghostArea_(ghostArea),
     ghostRapMax_(ghostRapMax),
@@ -100,7 +97,7 @@ public :
     //  throw "You didn't give me input jets or particles. You should give me one of the two";
     //  return std::vector<fastjet::PseudoJet>();
     //}
-    auto reclustering_time = std::chrono::steady_clock::now();
+  //  auto reclustering_time = std::chrono::steady_clock::now();
 
     fastjet::GhostedAreaSpec ghost_spec(ghostRapMax_, 1, ghostArea_);
     fastjet::GhostedAreaSpec ghost_spec_sub(ghostRapMax_, 1, 1.);
@@ -120,9 +117,9 @@ public :
     fastjet::AreaDefinition area_def_sub = fastjet::AreaDefinition(fastjet::active_area_explicit_ghosts,ghost_spec_sub);
     fastjet::ClusterSequenceArea csSub(fjInputs_, jet_defSub, area_def_sub);
 
-    double timereclustering_in_seconds = std::chrono::duration_cast<std::chrono::milliseconds>
-      (std::chrono::steady_clock::now() - reclustering_time).count() / 1000.0;
-    std::cout << "Re-clustering takes: " << timereclustering_in_seconds << std::endl;
+  //  double timereclustering_in_seconds = std::chrono::duration_cast<std::chrono::milliseconds>
+    //  (std::chrono::steady_clock::now() - reclustering_time).count() / 1000.0;
+  //  std::cout << "Re-clustering takes: " << timereclustering_in_seconds << std::endl;
 
     // create what we need for the background estimation
     //----------------------------------------------------------
@@ -151,11 +148,25 @@ public :
     //UE metric
     //----------------------------------------------------------
     std::vector<double> pTD_bkgd;
+    std::vector<double> meanpT_bkgd;
+
+    vector<fastjet::PseudoJet> constits;
     for(fastjet::PseudoJet& jet : bkgd_jets) {
       pTD_bkgd.push_back(pTD_.result(jet));
+      constits.clear();
+      constits = jet.constituents();
+      double meanpT_ = 0.;
+      for(fastjet::PseudoJet p : constits) {
+        meanpT_+= p.pt();
+      }
+      meanpt_ /= constits.size();
+      meanpT_bkgd.push_back(meanpT_);
     }
     std::nth_element(pTD_bkgd.begin(), pTD_bkgd.begin() + pTD_bkgd.size()/2, pTD_bkgd.end());
     double med_pTD = pTD_bkgd[pTD_bkgd.size()/2];
+
+    std::nth_element(meanpT_bkgd.begin(), meanpT_bkgd.begin() + meanpT_bkgd.size()/2, meanpT_bkgd.end());
+    double med_pT = meanpT_bkgd[meanpT_bkgd.size()/2];
 
     int nRMS = 0;
     double rms_pTD = 0.;
@@ -168,6 +179,8 @@ public :
 
     pTDbkg_ = med_pTD;
     pTDbkgSigma_ = rms_pTD;
+
+    meanpTbkgd_ = med_pT;
 
     std::mt19937 rndSeed(rd_()); //rnd number generator seed
 
