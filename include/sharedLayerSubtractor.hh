@@ -38,8 +38,16 @@ private :
   double rhoSigma_;
   double pTDbkg_;
   double pTDbkgSigma_;
+//  double meanpTbkg_;
+//  double meanpTbkgSigma_;
+  double massBkg_;
+  double massBkgSigma_;
+  //double widthBkg_;
+  //double widthBkgSigma_;
 
   Angularity pTD_;
+  Angularity mass_;
+  //Angularity width_;
 
   std::vector<fastjet::PseudoJet> fjInputs_;
   std::vector<fastjet::PseudoJet> fjJetInputs_;
@@ -60,7 +68,7 @@ public :
                         double ghostRapMax = 3.0,
                         double jetRapMax = 3.0,
                         int nInitCond = 25.,
-                        int nTopInit = 5.) :
+                        int nTopInit = 24.) :
     jetRParam_(rJet),
     ghostArea_(ghostArea),
     ghostRapMax_(ghostRapMax),
@@ -69,6 +77,8 @@ public :
     nTopInit_(nTopInit)
   {
     pTD_ = Angularity(0.,2.,0.4);
+    mass_ = Angularity(2., 1., 0.4);
+  //  width_ = Angularity(1., 1., 0.4);
 
   }
 
@@ -82,6 +92,12 @@ public :
 
   double getPTDBkg() const { return pTDbkg_; }
   double getPTDBkgSigma() const { return pTDbkgSigma_; }
+
+  //double getMeanpTBkg() const { return meanpTbkg_; }
+  //double getMeanpTBkgSigma() const { return meanpTbkgSigma_; }
+
+//  double getmassBkg() const { return massBkg_; }
+//  double getmassBkgSigma() const { return massBkgSigma_; }
 
   std::vector<std::vector<double>> getChi2s() const { return fChi2s_; }
   std::vector<std::vector<int>> getNShared() const { return fShare_; }
@@ -148,39 +164,83 @@ public :
     //UE metric
     //----------------------------------------------------------
     std::vector<double> pTD_bkgd;
-    std::vector<double> meanpT_bkgd;
+    //std::vector<double> meanpT_bkgd;
+    std::vector<double> mass_bkgd;
+    std::vector<double> width_bkgd;
 
     vector<fastjet::PseudoJet> constits;
     for(fastjet::PseudoJet& jet : bkgd_jets) {
-      pTD_bkgd.push_back(pTD_.result(jet));
-      constits.clear();
-      constits = jet.constituents();
-      double meanpT_ = 0.;
-      for(fastjet::PseudoJet p : constits) {
-        meanpT_+= p.pt();
+  //    pTD_bkgd.push_back(pTD_.result(jet));
+     mass_bkgd.push_back(mass_.result(jet));
+  //   width_bkgd.push_back(width_.result(jet));
+    //  constits.clear();
+  //    constits = jet.constituents();
+  //    double meanpT_ = 0.;
+  //    for(fastjet::PseudoJet p : constits) {
+    //    meanpT_+= p.pt();
+    //   }
+    //   meanpT_ /= constits.size();
+    //  meanpT_bkgd.push_back(meanpT_);
+    }
+    //std::nth_element(pTD_bkgd.begin(), pTD_bkgd.begin() + pTD_bkgd.size()/2, //pTD_bkgd.end());
+  //  double med_pTD = pTD_bkgd[pTD_bkgd.size()/2];
+
+    std::nth_element(mass_bkgd.begin(), mass_bkgd.begin() + mass_bkgd.size()/2, mass_bkgd.end());
+    double med_mass = mass_bkgd[mass_bkgd.size()/2];
+
+    //std::nth_element(width_bkgd.begin(), width_bkgd.begin() + width_bkgd.size()/2, width_bkgd.end());
+    //double med_width = width_bkgd[width_bkgd.size()/2];
+
+  //  std::nth_element(meanpT_bkgd.begin(), meanpT_bkgd.begin() + meanpT_bkgd.size()/2, meanpT_bkgd.end());
+  //  double med_meanpT = meanpT_bkgd[meanpT_bkgd.size()/2];
+
+  //  int nRMS = 0;
+  //  double rms_pTD = 0.;
+  //  for(int ip = 0; ip<(int)pTD_bkgd.size(); ++ip) {
+  //    rms_pTD += (pTD_bkgd[ip]-med_pTD)*(pTD_bkgd[ip]-med_pTD);
+  //    nRMS++;
+  //  }
+  //  if(nRMS>0.)
+  //    rms_pTD = sqrt(rms_pTD/(double)nRMS);
+
+      int nRMSm = 0;
+      double rms_mass = 0.;
+      for(int ip = 0; ip<(int)mass_bkgd.size(); ++ip) {
+        rms_mass += (mass_bkgd[ip]-med_mass)*(mass_bkgd[ip]-med_mass);
+        nRMSm++;
       }
-      meanpt_ /= constits.size();
-      meanpT_bkgd.push_back(meanpT_);
-    }
-    std::nth_element(pTD_bkgd.begin(), pTD_bkgd.begin() + pTD_bkgd.size()/2, pTD_bkgd.end());
-    double med_pTD = pTD_bkgd[pTD_bkgd.size()/2];
+      if(nRMSm>0.)
+        rms_mass = sqrt(rms_mass/(double)nRMSm);
 
-    std::nth_element(meanpT_bkgd.begin(), meanpT_bkgd.begin() + meanpT_bkgd.size()/2, meanpT_bkgd.end());
-    double med_pT = meanpT_bkgd[meanpT_bkgd.size()/2];
+//        int nRMSw = 0;
+//        double rms_width = 0.;
+//        for(int ip = 0; ip<(int)width_bkgd.size(); ++ip) {
+//          rms_width += (width_bkgd[ip]-med_width)*(width_bkgd[ip]-med_width);
+//          nRMSw++;
+//        }
+//        if(nRMSw>0.)
+//          rms_width = sqrt(rms_width/(double)nRMSw);
 
-    int nRMS = 0;
-    double rms_pTD = 0.;
-    for(int ip = 0; ip<(int)pTD_bkgd.size(); ++ip) {
-      rms_pTD += (pTD_bkgd[ip]-med_pTD)*(pTD_bkgd[ip]-med_pTD);
-      nRMS++;
-    }
-    if(nRMS>0.)
-      rms_pTD = sqrt(rms_pTD/(double)nRMS);
+  //  int nRMSpt = 0;
+//    double rms_meanpT = 0.;
+  //  for(int ip = 0; ip<(int)meanpT_bkgd.size(); ++ip) {
+  //      rms_meanpT += (meanpT_bkgd[ip]-med_meanpT)*(meanpT_bkgd[ip]-med_meanpT);
+  //      nRMSpt++;
+  //    }
+  //  if(nRMSpt>0.)
+  //    rms_meanpT = sqrt(rms_meanpT/(double)nRMSpt);
 
-    pTDbkg_ = med_pTD;
-    pTDbkgSigma_ = rms_pTD;
+  //  pTDbkg_ = med_pTD;
+//    pTDbkgSigma_ = rms_pTD;
 
-    meanpTbkgd_ = med_pT;
+    massBkg_ = med_mass;
+    massBkgSigma_ = rms_mass;
+
+//    widthBkg_ = med_width;
+//    widthBkgSigma_ = rms_width;
+
+  //  meanpTbkg_ = med_meanpT; //its the median
+  //  meanpTbkgSigma_ = rms_meanpT;
 
     std::mt19937 rndSeed(rd_()); //rnd number generator seed
 
@@ -246,7 +306,9 @@ public :
             continue;
 
           fastjet::PseudoJet partSel = particles[ipSel];
+          // Artificial ptcut
           initCondition.push_back(partSel.user_index());
+          // put a pt cut here??
           maxPtCurrent+=partSel.pt();
       //    if (ijet == 0 && ii == 0) {std::cout << "Added new particle with pt = " << partSel.pt() << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt << std::endl;}
         }
@@ -271,9 +333,12 @@ public :
       //----------------------------------------------------------
       //Now we have the requested number of random initial condition
 
-      //Next step: calc chi2 for each initial condition
+      //Next step: calc chi2 for each initial condition (with mass)
       //----------------------------------------------------------
-      std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_pTD, rms_pTD);
+     std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_mass, rms_mass); //
+
+  //    std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_meanpT, rms_meanpT);
+//  std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_mass, rms_mass);
 
        fChi2s_.push_back(chi2s);
 
@@ -299,6 +364,23 @@ public :
         }
       }
       fShare_.push_back(share_idx);
+      //Let's check how does the fShare looks like
+       //if (ijet == 0) {
+      //   TFile *f = new TFile("shared_dist_1event.root", "RECREATE");
+      //   double chi2s_value = 0;
+         //  double ptd_value = 0;
+     //    TTree *chi2s_dist = new TTree("chi2s_dist", "N1");
+     //    chi2s_dist->Branch("chi2s_value", &chi2s_value, "chi2s_value/D");
+     //   for(int ii = 0; ii<nInitCond_; ++ii) {
+     //      chi2s_value = chi2s.at(ii);
+   //        chi2s_dist ->Fill();
+   //     }
+     //   chi2s_dist->Write();
+   //     chi2s_dist->Scan();
+   //      f->Write();
+   //     f->Close();
+   //   }
+    //  if (ijet==1) cout << fShare_.at(1).size() << endl;
       //sort according to how often a particle is shared
       //----------------------------------------------------------
       // initialize original index locations
@@ -433,7 +515,7 @@ public :
   }
 
 
-  std::vector<double> calculateChi2s(std::vector<std::vector<int> > collInitCond, std::vector<fastjet::PseudoJet> particles, double med_pTD, double rms_pTD) {
+  std::vector<double> calculateChi2s(std::vector<std::vector<int> > collInitCond, std::vector<fastjet::PseudoJet> particles, double med_mass, double rms_mass) {
     // calc chi2 for each initial condition
 
     std::vector<double> chi2s;
@@ -444,10 +526,15 @@ public :
         std::vector<fastjet::PseudoJet> combinedparticles;
         for(int ic = 0; ic<(int)indices.size(); ++ic) {
           combinedparticles.push_back(particles[indices[ic]]);
+        //  meanpT_+=particles[indices[ic]].pt();
         }
         fastjet::PseudoJet currInitJet = fastjet::PseudoJet(join(combinedparticles));
-        double ptDCur = pTD_.result(currInitJet);
-        chi2 = fabs(ptDCur-med_pTD)*(fabs(ptDCur-med_pTD))/rms_pTD/rms_pTD;
+        //double pTDCur = pTD_.result(currInitJet);
+        double massCur = mass_.result(currInitJet);
+        //double widthCur = width_.result(currInitJet);
+  //      double meanpTCur = meanpT_/combinedparticles.size();
+        //mass_.result(currInitJet);
+        chi2 = fabs(massCur-med_mass)*(fabs(massCur-med_mass))/rms_mass/rms_mass;
       }
       chi2s.push_back(chi2);
     }
