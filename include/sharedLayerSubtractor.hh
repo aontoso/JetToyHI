@@ -10,6 +10,7 @@
 #include <random>
 #include <numeric>
 
+
 #include "fastjet/PseudoJet.hh"
 #include "fastjet/ClusterSequenceArea.hh"
 #include "fastjet/tools/JetMedianBackgroundEstimator.hh"
@@ -58,6 +59,7 @@ private :
 
   std::random_device rd_;
   int nInitCond_;
+//  int nsharedCond_;
   int nTopInit_;
 
   fastjet::ClusterSequenceArea *csJetSub;
@@ -67,13 +69,15 @@ public :
                         double ghostArea = 0.001,
                         double ghostRapMax = 3.0,
                         double jetRapMax = 3.0,
-                        int nInitCond = 25.,
-                        int nTopInit = 24.) :
+                        int nInitCond = 100.,
+                      //  int nsharedCond = 1,
+                        int nTopInit = 10.) :
     jetRParam_(rJet),
     ghostArea_(ghostArea),
     ghostRapMax_(ghostRapMax),
     jetRapMax_(jetRapMax),
     nInitCond_(nInitCond),
+  //  nsharedCond_(nsharedCond),
     nTopInit_(nTopInit)
   {
     pTD_ = Angularity(0.,2.,0.4);
@@ -170,7 +174,7 @@ public :
 
     vector<fastjet::PseudoJet> constits;
     for(fastjet::PseudoJet& jet : bkgd_jets) {
-  //    pTD_bkgd.push_back(pTD_.result(jet));
+      pTD_bkgd.push_back(pTD_.result(jet));
      mass_bkgd.push_back(mass_.result(jet));
   //   width_bkgd.push_back(width_.result(jet));
     //  constits.clear();
@@ -182,8 +186,8 @@ public :
     //   meanpT_ /= constits.size();
     //  meanpT_bkgd.push_back(meanpT_);
     }
-    //std::nth_element(pTD_bkgd.begin(), pTD_bkgd.begin() + pTD_bkgd.size()/2, //pTD_bkgd.end());
-  //  double med_pTD = pTD_bkgd[pTD_bkgd.size()/2];
+    std::nth_element(pTD_bkgd.begin(), pTD_bkgd.begin() + pTD_bkgd.size()/2, pTD_bkgd.end());
+    double med_pTD = pTD_bkgd[pTD_bkgd.size()/2];
 
     std::nth_element(mass_bkgd.begin(), mass_bkgd.begin() + mass_bkgd.size()/2, mass_bkgd.end());
     double med_mass = mass_bkgd[mass_bkgd.size()/2];
@@ -194,14 +198,14 @@ public :
   //  std::nth_element(meanpT_bkgd.begin(), meanpT_bkgd.begin() + meanpT_bkgd.size()/2, meanpT_bkgd.end());
   //  double med_meanpT = meanpT_bkgd[meanpT_bkgd.size()/2];
 
-  //  int nRMS = 0;
-  //  double rms_pTD = 0.;
-  //  for(int ip = 0; ip<(int)pTD_bkgd.size(); ++ip) {
-  //    rms_pTD += (pTD_bkgd[ip]-med_pTD)*(pTD_bkgd[ip]-med_pTD);
-  //    nRMS++;
-  //  }
-  //  if(nRMS>0.)
-  //    rms_pTD = sqrt(rms_pTD/(double)nRMS);
+    int nRMS = 0;
+    double rms_pTD = 0.;
+    for(int ip = 0; ip<(int)pTD_bkgd.size(); ++ip) {
+      rms_pTD += (pTD_bkgd[ip]-med_pTD)*(pTD_bkgd[ip]-med_pTD);
+      nRMS++;
+    }
+    if(nRMS>0.)
+      rms_pTD = sqrt(rms_pTD/(double)nRMS);
 
       int nRMSm = 0;
       double rms_mass = 0.;
@@ -230,8 +234,8 @@ public :
   //  if(nRMSpt>0.)
   //    rms_meanpT = sqrt(rms_meanpT/(double)nRMSpt);
 
-  //  pTDbkg_ = med_pTD;
-//    pTDbkgSigma_ = rms_pTD;
+    pTDbkg_ = med_pTD;
+    pTDbkgSigma_ = rms_pTD;
 
     massBkg_ = med_mass;
     massBkgSigma_ = rms_mass;
@@ -289,24 +293,36 @@ public :
 
         double maxPtCurrent = 0.;
         std::vector<int> avail(closestPartToGhost.size());
+        std::vector<int> avail_part(particlesNotUsed.size());
         std::fill(avail.begin(),avail.end(),1);
-        while(maxPtCurrent<maxPt && std::accumulate(avail.begin(),avail.end(),0)>0 ) {
+        std::fill(avail_part.begin(),avail_part.end(),1);
+
+        while(maxPtCurrent<maxPt && std::accumulate(avail.begin(),avail.end(),0)>0  && std::accumulate(avail_part.begin(),avail_part.end(),0)>0 ) {
           //std::cout << "avail: " << std::accumulate(avail.begin(),avail.end(),0) << std::endl;
 
           //pick random ghost
           int ighost = int(std::floor(distUni(rndSeed)));
           if(ighost>=ghosts.size()) continue;
 
-          int ipSel = -1;
+          int iparticle = -1;
           if(closestPartToGhostNotUsed[ighost].size()>0) {
-            ipSel = closestPartToGhostNotUsed[ighost][0];
+            iparticle = closestPartToGhostNotUsed[ighost][0];
             if(closestPartToGhostNotUsed[ighost].size()<2) avail[ighost] = 0;
             closestPartToGhostNotUsed[ighost].erase(closestPartToGhostNotUsed[ighost].begin()+0);
           } else
             continue;
 
+          int ipSel = 0;
+          if (avail_part.at(iparticle)!=0){
+            ipSel = iparticle;
+            avail_part.at(iparticle) = 0;
+            }
+           else continue;
+
           fastjet::PseudoJet partSel = particles[ipSel];
           // Artificial ptcut
+          //if (ijet==0 && ii ==0) cout << partSel.user_index() << endl;
+            //      if (ijet == 0 && ii ==0) cout << partSel.user_index() << endl;
           initCondition.push_back(partSel.user_index());
           // put a pt cut here??
           maxPtCurrent+=partSel.pt();
@@ -330,12 +346,106 @@ public :
         }
       }//initial conditions loop
 
+      //
+
+      //Next step: figure out how often each particle is shared in nInitCond_ initial conditions
+      //----------------------------------------------------------
+    //  cout << "=================" << endl;
+  //    std::vector<int> sharedonce_idx(particles.size(),0);
+    //  for(int it = 0; it<(int)collInitCond.size(); ++it) {
+  //      std::vector<int> indices = collInitCond[it];
+    //    for(int ic = 0; ic<(int)indices.size(); ++ic) {
+    //      if (ijet == 0 && it ==0) cout << particles[indices[ic]].user_index() << endl;
+    //      sharedonce_idx[particles[indices[ic]].user_index()]++;
+    //    }
+    //  }
+    //
+  //    std::sort(sharedonce_idx.begin(), sharedonce_idx.end());
+  //    int mycount = std::count (sharedonce_idx.begin(), sharedonce_idx.end(), 0);
+  //    double weight = 1;
+  //    int mycount_weighted = int(mycount*weight);
+  //    sharedonce_idx.erase(sharedonce_idx.begin(),sharedonce_idx.begin()+mycount//_weighted);
+  //   std::remove(sharedonce_idx.begin(), sharedonce_idx.end(), 0);
+    //  sharedonce_idx.shrink_to_fit();//} // Keep all the particles that are shared at least once
+  //    fShare_.push_back(sharedonce_idx);
+    //  cout << sharedonce_idx.at(1) << endl;
+    //  std::vector<fastjet::PseudoJet> shared_particles;
+
+      //sort according to how often a particle is shared from zero to the maximum amount of times
+      //----------------------------------------------------------
+      // initialize original index locations
+      //----------------------------------------------------------
+  //   std::vector<size_t> ish_shared(sharedonce_idx.size());
+  //    iota(ish_shared.begin(), ish_shared.end(), 0);
+  //   std::sort(ish_shared.begin(), ish_shared.end(),
+  //            [&sharedonce_idx](size_t i1, size_t i2) {return sharedonce_idx[i1] > sharedonce_idx[i2];});
+     //----------------------------------------------------------
+     // create a new set of initial conditions with the at least once shared particles
+    //----------------------------------------------------------
+  //  std::vector<fastjet::PseudoJet> shared_particles;
+  //  for(auto userIndex : ish_shared) {
+  //    fastjet::PseudoJet part_shared = particles[userIndex];
+  ////    shared_particles.push_back(part_shared);
+  //  }
+
+  //   std::vector<std::vector<int>> sharInitCond;
+  //   for(int ii = 0; ii<nsharedCond_; ++ii) {
+  //     std::uniform_int_distribution<> distUni(0,shared_particles.size()-1);
+  //     std::vector<int> sharedinitCondition;
+  //     double maxPt = rho_*jet.area();
+  //     double maxPtCurrent = 0;
+    //   double maxPtCurrent_two = 0;
+
+//       std::vector<int> avail(shared_particles.size());
+  //     std::fill(avail.begin(),avail.end(),1);
+  //     while(maxPtCurrent<maxPt && std::accumulate(avail.begin(),avail.end(),0)>0 ){
+  //     int ipSel = 0;
+  //     int iparticle = int(std::floor(distUni(rndSeed)));
+  //     if (iparticle >= shared_particles.size()) continue;
+  //     if (avail.at(iparticle)!=0){
+  //     ipSel = iparticle;
+  //     avail.at(iparticle) = 0;
+  //     }
+  //    else continue;
+
+  //    fastjet::PseudoJet partSel = shared_particles[ipSel];
+    //  fastjet::PseudoJet partSel_two = particles[ipSel]; It is equivalent
+      //if(ijet == 0 && ii == 0) {cout << "partsel: " << partSel << endl;
+      //cout << "partselTwo: " << partSel_two << endl;}
+      // Artificial ptcut
+  //    sharedinitCondition.push_back(partSel.user_index());
+      // put a pt cut here??
+  ////    maxPtCurrent+=partSel.pt();
+    //  maxPtCurrent_two+=partSel_two.pt();
+
+    //  if (ii == 0) {std::cout << "Added new particle with pt = " << partSel.pt() << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt << std::endl;}
+
+  //     }
+    //   if(maxPtCurrent>maxPt) {
+       //  if (ijet == 0 && ii == 0){
+    //    int initConditionSize_ = sharedinitCondition.size();
+    //    double maxPtPrev = 0;
+    //    std::vector<fastjet::PseudoJet> initCondParticles;
+    //     for(int ic = 0; ic<initConditionSize_-1; ++ic) {
+    //       initCondParticles.push_back(shared_particles[sharedinitCondition[ic]]);
+    //       maxPtPrev+=initCondParticles.at(ic).pt();
+    //     }
+    //     double distance_one = sqrt((maxPt-maxPtCurrent)*(maxPt-maxPtCurrent));
+    //     double distance_two = sqrt((maxPt-maxPtPrev)*(maxPt-maxPtPrev));
+    //     if (distance_one > distance_two) sharedinitCondition.pop_back();
+
+    //     sharInitCond.push_back(sharedinitCondition); //avoid putting in a initial condition for which not enough particles were available anymore to get to the required pT. Might be an issue for sparse events.
+       //}
+    //   }
+  //   }//initial conditions loop
+
       //----------------------------------------------------------
       //Now we have the requested number of random initial condition
 
-      //Next step: calc chi2 for each initial condition (with mass)
+      //Next step: calc chi2 for each initial condition
       //----------------------------------------------------------
-     std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_mass, rms_mass); //
+     std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_pTD, rms_pTD); //
+    // std::vector<double> chi2s = calculateChi2s(sharInitCond, particles, med_mass, rms_mass);
 
   //    std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_meanpT, rms_meanpT);
 //  std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_mass, rms_mass);
@@ -356,30 +466,15 @@ public :
       //Next step: figure out how often each particle is shared in nTopInit_ initial conditions
       //----------------------------------------------------------
       std::vector<int> share_idx(particles.size(),0);
-      for(int it = 0; it<std::min(nTopInit_,(int)collInitCond.size()); ++it) {
+     for(int it = 0; it<std::min(nTopInit_,(int)collInitCond.size()); ++it) {
         int chi2Index = idx[it];
         std::vector<int> indices = collInitCond[chi2Index];
         for(int ic = 0; ic<(int)indices.size(); ++ic) {
           share_idx[particles[indices[ic]].user_index()]++;
-        }
-      }
+       }
+    }
       fShare_.push_back(share_idx);
-      //Let's check how does the fShare looks like
-       //if (ijet == 0) {
-      //   TFile *f = new TFile("shared_dist_1event.root", "RECREATE");
-      //   double chi2s_value = 0;
-         //  double ptd_value = 0;
-     //    TTree *chi2s_dist = new TTree("chi2s_dist", "N1");
-     //    chi2s_dist->Branch("chi2s_value", &chi2s_value, "chi2s_value/D");
-     //   for(int ii = 0; ii<nInitCond_; ++ii) {
-     //      chi2s_value = chi2s.at(ii);
-   //        chi2s_dist ->Fill();
-   //     }
-     //   chi2s_dist->Write();
-   //     chi2s_dist->Scan();
-   //      f->Write();
-   //     f->Close();
-   //   }
+
     //  if (ijet==1) cout << fShare_.at(1).size() << endl;
       //sort according to how often a particle is shared
       //----------------------------------------------------------
@@ -388,7 +483,6 @@ public :
       iota(ish.begin(), ish.end(), 0);
       std::sort(ish.begin(), ish.end(),
                 [&share_idx](size_t i1, size_t i2) {return share_idx[i1] > share_idx[i2];});
-
 
       //create final UE object
       //----------------------------------------------------------
@@ -431,27 +525,6 @@ public :
         csJetSub->delete_self_when_unused();
         //cout << jetSub.pt() << endl;
       }
-//      cout << subtracted_jets[ijet] << endl;
-//    std::vector<fastjet::PseudoJet> particles2, ghosts2;
-  //    fastjet::SelectorIsPureGhost().sift(subtracted_jets[ijet].constituents(), ghosts2, particles2);
-    //  double ptfJet_ghosts = 0;
-      //vector<PseudoJet> constituents = subtracted_jets[0].constituents();
-      //cout << ghosts2.size() << endl;
-      //for(int ipartjets = 0; ipartjets<particles2.size(); ++ipartjets){
-        // cout << fjJetParticles_[ipartjets].pt()<< endl;
-        //   ptfJet+=particles2[ipartjets].pt();
-        // }
-      //cout << ptfJet+ptfJet_ghosts << endl;
-    //  cout << fjJetParticles_[0].E() << endl;
-  //    for(int ipartjets = 0; ipartjets<fjJetParticles_.size(); ++ipartjets){
-    // cout << fjJetParticles_[ipartjets].pt()<< endl;
-      // ptfJet+=constituents_two.size();
-  //    }
-    //  cout << ptfJet<< endl;
-      //double timetosubstactonejet_in_seconds = //std::chrono::duration_cast<std::chrono::milliseconds>
-        //(std::chrono::steady_clock::now() - jetloop_time).count() / 1000.0;
-    //  std::cout << "One jet substraction takes: " << timetosubstactonejet_in_seconds << std::endl;
-  //  cout << "New Jet" << endl;
 
     }//jet loop
 
@@ -515,7 +588,7 @@ public :
   }
 
 
-  std::vector<double> calculateChi2s(std::vector<std::vector<int> > collInitCond, std::vector<fastjet::PseudoJet> particles, double med_mass, double rms_mass) {
+  std::vector<double> calculateChi2s(std::vector<std::vector<int> > collInitCond, std::vector<fastjet::PseudoJet> particles, double med_pTD, double rms_pTD) {
     // calc chi2 for each initial condition
 
     std::vector<double> chi2s;
@@ -529,12 +602,12 @@ public :
         //  meanpT_+=particles[indices[ic]].pt();
         }
         fastjet::PseudoJet currInitJet = fastjet::PseudoJet(join(combinedparticles));
-        //double pTDCur = pTD_.result(currInitJet);
-        double massCur = mass_.result(currInitJet);
+        double pTDCur = pTD_.result(currInitJet);
+      //  double massCur = mass_.result(currInitJet);
         //double widthCur = width_.result(currInitJet);
   //      double meanpTCur = meanpT_/combinedparticles.size();
         //mass_.result(currInitJet);
-        chi2 = fabs(massCur-med_mass)*(fabs(massCur-med_mass))/rms_mass/rms_mass;
+        chi2 = fabs(pTDCur-med_pTD)*(fabs(pTDCur-med_pTD))/rms_pTD/rms_pTD;
       }
       chi2s.push_back(chi2);
     }
