@@ -45,7 +45,7 @@ int main (int argc, char ** argv) {
   ClusterSequence::set_fastjet_banner_stream(NULL);
 
   //to write info to root tree
-  TFile *fout = new TFile("JetToyHIResultSharedLayers_25Init_1kevent.root","RECREATE");
+  TFile *fout = new TFile("JetToyHIResultSharedLayers_test_mass.root","RECREATE");
   fout->cd();
   treeWriter trw("jetTree");
 
@@ -201,6 +201,7 @@ int main (int argc, char ** argv) {
     std::vector<std::vector<double>> chi2s = sharedLayerSub.getChi2s();
     std::vector<std::vector<int>> nshared = sharedLayerSub.getNShared();
 
+
     //calculate some angularities
     vector<double> pTDSL;     pTDSL.reserve(jetCollectionSL.getJet().size());
     vector<double> widthSqSL; widthSqSL.reserve(jetCollectionSL.getJet().size());
@@ -270,6 +271,13 @@ int main (int argc, char ** argv) {
 
     trw.addCollection("eventWeight",   eventWeight);
 
+    TTree *treeOut = trw.getTree();
+    if(!treeOut->GetBranch("slChi2s"))
+     treeOut->Branch("slChi2s",&chi2s);
+    if(!treeOut->GetBranch("slNShared"))     //no ROOT dictionary for vector<vector<int>> available. grmpf. Solved in https://root-forum.cern.ch/t/problem-in-accessing-vector-vector-float/27983/2
+    treeOut->Branch("slNShared",&nshared);
+
+
     trw.fillTree();
 
   }//event loop
@@ -286,7 +294,7 @@ int main (int argc, char ** argv) {
  fout->Write();
  fout->Close();
 
-  std::cout << "Check JetToyHIResultSharedLayers_25Init_1kevent.root for results" << std::endl;
+  std::cout << "Check JetToyHIResultSharedLayers_test_mass.root for results" << std::endl;
 
   double time_in_seconds = std::chrono::duration_cast<std::chrono::milliseconds>
     (std::chrono::steady_clock::now() - start_time).count() / 1000.0;
