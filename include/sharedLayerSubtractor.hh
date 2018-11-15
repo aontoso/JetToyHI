@@ -67,7 +67,7 @@ public :
                         double ghostRapMax = 3.0,
                         double jetRapMax = 3.0,
                         int nInitCond = 2.,
-                        int nTopInit = 1.) :
+                        int nTopInit = 2.) :
     jetRParam_(rJet),
     ghostArea_(ghostArea),
     ghostRapMax_(ghostRapMax),
