@@ -66,7 +66,7 @@ public :
                         double ghostArea = 0.001,
                         double ghostRapMax = 3.0,
                         double jetRapMax = 3.0,
-                        int nInitCond = 2.,
+                        int nInitCond = 1.,
                         int nTopInit = 1.) :
     jetRParam_(rJet),
     ghostArea_(ghostArea),
@@ -250,11 +250,11 @@ public :
       }
 
       // create map of ghost and closest particle
-      std::vector<std::vector<int>> closestPartToGhost;
-      for(int ighost = 0; ighost<ghosts.size(); ++ighost) {
-        std::vector<int> ipSel = findClosestParticles(particles, ighost, ghosts, 5);
-        closestPartToGhost.push_back(ipSel);
-      }
+    //  std::vector<std::vector<int>> closestPartToGhost;
+      //for(int ighost = 0; ighost<ghosts.size(); ++ighost) {
+      //  std::vector<int> ipSel = findClosestParticles(particles, ighost, ghosts, 5);
+      //  closestPartToGhost.push_back(ipSel);
+    //  }
 
       // create requested number of initial conditions
       //----------------------------------------------------------
@@ -263,41 +263,45 @@ public :
         std::uniform_int_distribution<> distUni(0,ghosts.size()-1); //uniform distribution of ghosts in vector
         std::vector<int> initCondition;                           //list of particles in initial condition
 
-        double maxPt = (rho_-rhoSigma_)*jet.area();
+        double maxPt = rho_*jet.area();
         //make copy of particles so that a particle is not repeated inside the same initial condition
         std::vector<fastjet::PseudoJet> particlesNotUsed = particles;
 
-        std::vector<std::vector<int>> closestPartToGhostNotUsed = closestPartToGhost;
+      //  std::vector<std::vector<int>> closestPartToGhostNotUsed = closestPartToGhost;
 
         double maxPtCurrent = 0.;
-        std::vector<int> avail(closestPartToGhost.size());
+      //  std::vector<int> avail(closestPartToGhost.size());
         std::vector<int> avail_part(particlesNotUsed.size());
-        std::fill(avail.begin(),avail.end(),1);
+      //  std::fill(avail.begin(),avail.end(),1);
         std::fill(avail_part.begin(),avail_part.end(),1);
 
-        while(maxPtCurrent<maxPt && std::accumulate(avail.begin(),avail.end(),0)>0  && std::accumulate(avail_part.begin(),avail_part.end(),0)>0 ) {
-
+        while(maxPtCurrent<maxPt &&
+        std::accumulate(avail_part.begin(),avail_part.end(),0)>0) {
 
           //pick random ghost
           int ighost = int(std::floor(distUni(rndSeed)));
           if(ighost>=ghosts.size()) continue;
 
-          int iparticle = -1;
-          if(closestPartToGhostNotUsed[ighost].size()>0) {
-            iparticle = closestPartToGhostNotUsed[ighost][0];
-            if(closestPartToGhostNotUsed[ighost].size()<2) avail[ighost] = 0;
-            closestPartToGhostNotUsed[ighost].erase(closestPartToGhostNotUsed[ighost].begin()+0);
-          } else
-            continue;
+          //find its closest neighbor
+          std::vector<int> icandidate;
+          icandidate = findClosestParticles(particlesNotUsed, ighost, ghosts,1);
+          int iparticle = 0;
+          iparticle = icandidate.at(0);
+
+    //      int iparticle = -1;
+    //      if(closestPartToGhostNotUsed[ighost].size()>0) {
+  //          iparticle = closestPartToGhostNotUsed[ighost][0];
+    //        if(closestPartToGhostNotUsed[ighost].size()<2) avail[ighost] = 0;
+    //      } else
+    //        continue;
 
           int ipSel = 0; // make sure you do not repeat a particle
           if (avail_part.at(iparticle)!=0){
             ipSel = iparticle;
-            avail_part.at(iparticle) = 0;
             }
            else continue;
 
-          fastjet::PseudoJet partSel = particles[ipSel];
+          fastjet::PseudoJet partSel = particlesNotUsed[ipSel];
 
           //---------------------------------------------------------------
           // Compare the particle pt with the average background spectrum
@@ -321,13 +325,17 @@ public :
             double random_prob = distPt(rndSeed);
           //  cout << random_prob << endl;
             if (candidate_pt_prob < random_prob){
-            initCondition.push_back(partSel.user_index());
-            maxPtCurrent+=partSel.pt();
+              avail_part.at(iparticle) = 0; // remove the particle from the list
+            //  particlesNotUsed.erase(particlesNotUsed.begin()+iparticle); // remove the particle from the list
+              initCondition.push_back(partSel.user_index());
+              maxPtCurrent+=partSel.pt();
+              if (ijet==0) std::cout << "Added new particle with pt = " << partSel.pt() <<  " iparticle: " << iparticle << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt
+              << " Particles left: " << std::accumulate(avail_part.begin(),avail_part.end(),0) << endl;
           }
+          else continue;
         } // while loop
 
         if(maxPtCurrent>maxPt) {
-
          int initConditionSize_ = initCondition.size();
          double maxPtPrev = 0;
          std::vector<fastjet::PseudoJet> initCondParticles;
@@ -337,13 +345,12 @@ public :
           }
           double distance_one = sqrt((maxPt-maxPtCurrent)*(maxPt-maxPtCurrent));
           double distance_two = sqrt((maxPt-maxPtPrev)*(maxPt-maxPtPrev));
-          if (distance_one > distance_two) initCondition.pop_back();
 
+          if (distance_one > distance_two) initCondition.pop_back();
           collInitCond.push_back(initCondition); //avoid putting in a initial condition for which not enough particles were available anymore to get to the required pT. Might be an issue for sparse events.
         //}
         }
       }//initial conditions loop
-
 
       //----------------------------------------------------------
       //Now we have the requested number of random initial condition
@@ -388,7 +395,7 @@ public :
 
       //create final UE object
       //----------------------------------------------------------
-      double maxPtFinalUE = (rho_-rhoSigma_)*jet.area();
+      double maxPtFinalUE = rho_*jet.area();
       double curPtFinalUE = 0.;
       double prevPtFinalUE = 0.;
 
@@ -451,7 +458,7 @@ public :
     return ipSel;
   }
 
-  std::vector<int> findClosestParticles(std::vector<fastjet::PseudoJet> particles, int ighost, std::vector<fastjet::PseudoJet> ghosts, int nClosest = 5) {
+  std::vector<int> findClosestParticles(std::vector<fastjet::PseudoJet> particles, int ighost, std::vector<fastjet::PseudoJet> ghosts, int nClosest = 1) {
     //find closest particle to ghost
 
     std::vector<double> dR2(nClosest);
