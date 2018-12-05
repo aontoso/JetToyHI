@@ -67,7 +67,7 @@ public :
                         double ghostRapMax = 3.0,
                         double jetRapMax = 3.0,
                         int nInitCond = 2.,
-                        int nTopInit = 2.) :
+                        int nTopInit = 1.) :
     jetRParam_(rJet),
     ghostArea_(ghostArea),
     ghostRapMax_(ghostRapMax),
@@ -115,7 +115,7 @@ public :
     fastjet::Selector jet_selector = SelectorAbsRapMax(jetRapMax_);
     jets = fastjet::sorted_by_pt(jet_selector(cs.inclusive_jets()));
 
-    fastjet::JetDefinition jet_defSub(antikt_algorithm, 20.); // this makes it super slow
+    fastjet::JetDefinition jet_defSub(antikt_algorithm, 20.);
     fastjet::AreaDefinition area_def_sub = fastjet::AreaDefinition(fastjet::active_area_explicit_ghosts,ghost_spec_sub);
     fastjet::ClusterSequenceArea csSub(fjInputs_, jet_defSub, area_def_sub);
 
@@ -138,20 +138,49 @@ public :
 
     if(rho_ < 0)   rho_ = 0;
 
-    //std::cout << "rho: " << rho_ << "  rhoSigma: " << rhoSigma_ << std::endl;
-
-    //initial gaus with mean=rho_ and width=rhoSigma_
-  //  std::normal_distribution<> gausDist(rho_, rhoSigma_);
-
     //UE metric
     //----------------------------------------------------------
     std::vector<double> pTD_bkgd;
     std::vector<double> mass_bkgd;
+    double maxpt_bkgd = 0;
 
+    for(fastjet::PseudoJet& jet : bkgd_jets) {
+      std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
+        fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
 
-      TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
-      delete h;
-      TH1D *h_pt_constituents = new TH1D("p_{T} const", "p_{T} const", 100., 0.,6.);
+     // Find the maximum-pt of the background
+       for(fastjet::PseudoJet p : particles) {
+            double momentum = p.pt();
+            if (momentum > maxpt_bkgd) maxpt_bkgd = momentum;
+         }
+
+        }
+
+        TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
+        delete h;
+        TH1D *h_pt_constituents = new TH1D("p_{T} const", "p_{T} const", 100., 0.,maxpt_bkgd);
+
+      TH1D *h_total = (TH1D *)gROOT->FindObject("p_{T} const total");
+      delete h_total;
+      TH1D *h_pt_constituents_total = new TH1D("p_{T} const total", "p_{T} const total", 100., 0.,maxpt_bkgd);
+
+   vector<fastjet::PseudoJet> constits_total;
+
+   for(fastjet::PseudoJet& jet : jets) {
+     std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
+       fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
+
+       for(fastjet::PseudoJet p : particles) {
+           double momentum = p.pt();
+           if(momentum <= maxpt_bkgd) h_pt_constituents_total->Fill(p.pt());
+        }
+
+ }
+
+       h_pt_constituents_total->Sumw2();
+       int nentries_total = h_pt_constituents_total->GetEntries();
+       h_pt_constituents_total->Scale(1./(double)nentries_total);
+
 
     vector<fastjet::PseudoJet> constits;
     for(fastjet::PseudoJet& jet : bkgd_jets) {
@@ -162,20 +191,15 @@ public :
         fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
 
         for(fastjet::PseudoJet p : particles) {
-      //  cout << p.pt() << endl;
             h_pt_constituents->Fill(p.pt());
          }
       }
       h_pt_constituents->Sumw2();
-      int nentries = h_pt_constituents->GetEntries();
-      h_pt_constituents->Scale(1./(double)nentries); // normalize
+      h_pt_constituents->Scale(1./(double)nentries_total); // normalize
 
-  //  cout << "Value: " << h_pt_constituents->GetBinContent(2)<< " Error: " << h_pt_constituents->GetBinError(2) << endl;
       double pt_binWidth = h_pt_constituents->GetBinWidth(0); // will use it later
       int nbins = h_pt_constituents->GetNbinsX();
-      //int bin_max_height = h_pt_constituents->GetMaximumBin(); // for generating the random number afterwards
       double ptmax = h_pt_constituents->GetBinCenter(nbins)+pt_binWidth/2;
-  //    double max_prob = h_pt_constituents->GetBinContent(bin_max_height);
       int lastbin_nonzero = h_pt_constituents->FindLastBinAbove(0); // this is our effective cut off
 
     std::nth_element(pTD_bkgd.begin(), pTD_bkgd.begin() + pTD_bkgd.size()/2, pTD_bkgd.end());
@@ -243,25 +267,21 @@ public :
       std::vector<std::vector<int>> collInitCond;
       for(int ii = 0; ii<nInitCond_; ++ii) {
         std::uniform_int_distribution<> distUni(0,ghosts.size()-1); //uniform distribution of ghosts in vector
-      //  std::uniform_real_distribution<double> distPt(0.0,max_prob);
         std::vector<int> initCondition;                           //list of particles in initial condition
-        //get random maxPt for this initial condition
 
-      //  double maxPt = (rho_-rhoSigma_)*jet.area();
-        double maxMass = (massBkg_-massBkgSigma_);
+        double maxPt = (rho_-rhoSigma_)*jet.area();
         //make copy of particles so that a particle is not repeated inside the same initial condition
         std::vector<fastjet::PseudoJet> particlesNotUsed = particles;
 
         std::vector<std::vector<int>> closestPartToGhostNotUsed = closestPartToGhost;
 
-      //  double maxPtCurrent = 0.;
-        double maxMassCurrent = 0.;
+        double maxPtCurrent = 0.;
         std::vector<int> avail(closestPartToGhost.size());
         std::vector<int> avail_part(particlesNotUsed.size());
         std::fill(avail.begin(),avail.end(),1);
         std::fill(avail_part.begin(),avail_part.end(),1);
 
-        while(maxMassCurrent<maxMass && std::accumulate(avail.begin(),avail.end(),0)>0  && std::accumulate(avail_part.begin(),avail_part.end(),0)>0 ) {
+        while(maxPtCurrent<maxPt && std::accumulate(avail.begin(),avail.end(),0)>0  && std::accumulate(avail_part.begin(),avail_part.end(),0)>0 ) {
 
 
           //pick random ghost
@@ -292,40 +312,36 @@ public :
             double candidate_pt = partSel.pt();
             int candidate_ptbin = int(candidate_pt*nbins/ptmax)+1;
             if (candidate_ptbin > lastbin_nonzero) continue;
-            double candidate_pt_prob = h_pt_constituents->GetBinContent(candidate_ptbin);
+            double candidate_pt_mean = h_pt_constituents->GetBinContent(candidate_ptbin);
             double candidate_pt_error = h_pt_constituents->GetBinError(candidate_ptbin);
-          //  double low_limit = candidate_pt_prob-candidate_pt_error;
-            double upper_limit = candidate_pt_prob+candidate_pt_error;
+            double candidate_pt_prob = candidate_pt_mean + candidate_pt_error;
+
+
+           double upper_limit_mean = h_pt_constituents_total->GetBinContent(candidate_ptbin);
+           double upper_limit_error = h_pt_constituents_total->GetBinError(candidate_ptbin);
+           double upper_limit = upper_limit_mean + upper_limit_error;
             std::uniform_real_distribution<double> distPt(0., upper_limit);
-        //  if (ijet == 0) cout << "Pt:  " << candidate_pt << " Bin: " << candidate_ptbin << " Probability " << candidate_pt_prob << endl;
+
+
             double random_prob = distPt(rndSeed);
           //  cout << random_prob << endl;
             if (candidate_pt_prob > random_prob){
-      //if (ijet == 0 && ii == 0) cout << "Pt:  " << candidate_pt << " Bin: " << candidate_ptbin << " Probability " << candidate_pt_prob << " Random prob: "<< random_prob <<endl;
-      //    if (ijet == 0 && ii == 0) cout << partSel.user_index() << endl;
             initCondition.push_back(partSel.user_index());
-            maxMassCurrent+=partSel.m();
-          //  maxPtCurrent+=partSel.pt();
-        //  cout << "Pt:  " << candidate_pt << " Bin: " << candidate_ptbin << " Probability " << candidate_pt_prob << " Random prob: "<< random_prob <<endl;
+            maxPtCurrent+=partSel.pt();
           }
-          //  else cout << "No" << endl;;
-        }
+        } // while loop
 
-        if(maxMassCurrent>maxMass) {
+        if(maxPtCurrent>maxPt) {
 
          int initConditionSize_ = initCondition.size();
-         //double maxPtPrev = 0;
-         double maxMassPrev = 0;
+         double maxPtPrev = 0;
          std::vector<fastjet::PseudoJet> initCondParticles;
           for(int ic = 0; ic<initConditionSize_-1; ++ic) {
             initCondParticles.push_back(particles[initCondition[ic]]);
-            maxMassPrev+ = initCondParticles.at(ic).m();
-          //  maxPtPrev+=initCondParticles.at(ic).pt();
+            maxPtPrev+=initCondParticles.at(ic).pt();
           }
-        //  double distance_one = sqrt((maxPt-maxPtCurrent)*(maxPt-maxPtCurrent));
-        //  double distance_two = sqrt((maxPt-maxPtPrev)*(maxPt-maxPtPrev));
-          double distance_one = sqrt((maxMass-maxMassCurrent)*(maxMass-maxMassCurrent));
-          double distance_two = sqrt((maxMass-maxMassPrev)*(maxMass-maxMassPrev));
+          double distance_one = sqrt((maxPt-maxPtCurrent)*(maxPt-maxPtCurrent));
+          double distance_two = sqrt((maxPt-maxPtPrev)*(maxPt-maxPtPrev));
           if (distance_one > distance_two) initCondition.pop_back();
 
           collInitCond.push_back(initCondition); //avoid putting in a initial condition for which not enough particles were available anymore to get to the required pT. Might be an issue for sparse events.
@@ -333,7 +349,6 @@ public :
         }
       }//initial conditions loop
 
-      //  cout << collInitCond.size()<< endl;
 
       //----------------------------------------------------------
       //Now we have the requested number of random initial condition
@@ -378,19 +393,16 @@ public :
 
       //create final UE object
       //----------------------------------------------------------
-    //  double maxPtFinalUE = (rho_-rhoSigma_)*jet.area();
-    //  double curPtFinalUE = 0.;
-  //    double prevPtFinalUE = 0.;
-      double maxMassFinalUE = massBkg_-maxBkgSigma_;
-      double curMassFinalUE = 0;
-      double prevMassFinalUE = 0;
+      double maxPtFinalUE = (rho_-rhoSigma_)*jet.area();
+      double curPtFinalUE = 0.;
+      double prevPtFinalUE = 0.;
 
       std::vector<fastjet::PseudoJet> bkgd_particles;
       fjJetParticles_.clear();
       for(auto userIndex : ish) {
       fastjet::PseudoJet part = particles[userIndex];
-       if(curMassFinalUE<maxMassFinalUE) { //assign as bkgd particle
-          curMassFinalUE+=part.m();
+       if(curPtFinalUE<maxPtFinalUE) { //assign as bkgd particle
+          curPtFinalUE+=part.pt();
           bkgd_particles.push_back(part);
         }
        else {
@@ -401,16 +413,12 @@ public :
       fastjet::PseudoJet last_bkg_part = bkgd_particles.at(bkgd_particles_size-1);
 
       for(int ipart = 0; ipart<bkgd_particles_size-1; ++ipart){
-       //prevPtFinalUE+=bkgd_particles.at(ipart).pt();
-       prevMassFinalUE+=bkgd_particles.at(ipart).m();
+       prevPtFinalUE+=bkgd_particles.at(ipart).pt();
       }
       // Decide what is a better aproximation
 
-    //  double distanceUE_one = sqrt((maxPtFinalUE-curPtFinalUE)*(maxPtFinalUE-curPtFinalUE));
-    //  double distanceUE_two = sqrt((maxPtFinalUE-prevPtFinalUE)*(maxPtFinalUE-prevPtFinalUE));
-
-    double distanceUE_one = sqrt((maxMassFinalUE-curMassFinalUE)*(maxMassFinalUE-curMassFinalUE));
-    double distanceUE_two = sqrt((maxMassFinalUE-prevMassFinalUE)*(maxMassFinalUE-prevMassFinalUE));
+      double distanceUE_one = sqrt((maxPtFinalUE-curPtFinalUE)*(maxPtFinalUE-curPtFinalUE));
+      double distanceUE_two = sqrt((maxPtFinalUE-prevPtFinalUE)*(maxPtFinalUE-prevPtFinalUE));
 
       if (distanceUE_one > distanceUE_two)
       { fjJetParticles_.push_back(last_bkg_part); // add the last particle from the background to the signal
