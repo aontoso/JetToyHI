@@ -153,36 +153,12 @@ public :
             double momentum = p.pt();
             if (momentum > maxpt_bkgd) maxpt_bkgd = momentum;
          }
-
-        }
+       } // bkgd_jets loop
 
         TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
         delete h;
         TH1D *h_pt_constituents = new TH1D("p_{T} const", "p_{T} const", 100., 0.,maxpt_bkgd);
 
-      TH1D *h_total = (TH1D *)gROOT->FindObject("p_{T} const total");
-      delete h_total;
-      TH1D *h_pt_constituents_total = new TH1D("p_{T} const total", "p_{T} const total", 100., 0.,maxpt_bkgd);
-
-   vector<fastjet::PseudoJet> constits_total;
-
-   for(fastjet::PseudoJet& jet : jets) {
-     std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
-       fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
-
-       for(fastjet::PseudoJet p : particles) {
-           double momentum = p.pt();
-           if(momentum <= maxpt_bkgd) h_pt_constituents_total->Fill(p.pt());
-        }
-
- }
-
-       h_pt_constituents_total->Sumw2();
-       int nentries_total = h_pt_constituents_total->GetEntries();
-       h_pt_constituents_total->Scale(1./(double)nentries_total);
-
-
-    vector<fastjet::PseudoJet> constits;
     for(fastjet::PseudoJet& jet : bkgd_jets) {
 
       pTD_bkgd.push_back(pTD_.result(jet));
@@ -194,13 +170,14 @@ public :
             h_pt_constituents->Fill(p.pt());
          }
       }
+
+      int nentries = h_pt_constituents->GetEntries();
       h_pt_constituents->Sumw2();
-      h_pt_constituents->Scale(1./(double)nentries_total); // normalize
+      h_pt_constituents->Scale(1./(double)nentries); // normalize
 
       double pt_binWidth = h_pt_constituents->GetBinWidth(0); // will use it later
       int nbins = h_pt_constituents->GetNbinsX();
       double ptmax = h_pt_constituents->GetBinCenter(nbins)+pt_binWidth/2;
-      int lastbin_nonzero = h_pt_constituents->FindLastBinAbove(0); // this is our effective cut off
 
     std::nth_element(pTD_bkgd.begin(), pTD_bkgd.begin() + pTD_bkgd.size()/2, pTD_bkgd.end());
     double med_pTD = pTD_bkgd[pTD_bkgd.size()/2];
@@ -249,6 +226,23 @@ public :
       std::vector<fastjet::PseudoJet> particles, ghosts;
       fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
       if(particles.size()<1 || jet.pt()<1.) continue;
+
+      // Use the background+signal information in each patch to do the pt-selection
+
+      TH1D *h_jet = (TH1D *)gROOT->FindObject("p_{T} const jet");
+      delete h_jet;
+      TH1D *h_pt_constituents_jet = new TH1D("p_{T} const jet", "p_{T} const jet", 100., 0.,maxpt_bkgd);
+
+    for(fastjet::PseudoJet p : particles) {
+      double momentum = p.pt();
+      if (momentum<=maxpt_bkgd){
+      h_pt_constituents_jet->Fill(momentum);
+      }
+     }
+
+     h_pt_constituents_jet->Sumw2();
+     int nentries_jet = h_pt_constituents_jet->GetEntries();
+     h_pt_constituents_jet->Scale(1./(double)nentries_jet);
 
       //set user_index of all particles to position particles vector
       for(int i = 0; i<(int)particles.size(); ++i) {
@@ -311,21 +305,22 @@ public :
 
             double candidate_pt = partSel.pt();
             int candidate_ptbin = int(candidate_pt*nbins/ptmax)+1;
-            if (candidate_ptbin > lastbin_nonzero) continue;
+            if (candidate_pt > maxpt_bkgd) continue;
             double candidate_pt_mean = h_pt_constituents->GetBinContent(candidate_ptbin);
             double candidate_pt_error = h_pt_constituents->GetBinError(candidate_ptbin);
             double candidate_pt_prob = candidate_pt_mean + candidate_pt_error;
 
+            // Do it on a jet-by-jet basis
 
-           double upper_limit_mean = h_pt_constituents_total->GetBinContent(candidate_ptbin);
-           double upper_limit_error = h_pt_constituents_total->GetBinError(candidate_ptbin);
-           double upper_limit = upper_limit_mean + upper_limit_error;
-            std::uniform_real_distribution<double> distPt(0., upper_limit);
+               double upper_limit_mean = h_pt_constituents_jet->GetBinContent(candidate_ptbin);
+               double upper_limit_error = h_pt_constituents_jet->GetBinError(candidate_ptbin);
+               double upper_limit = upper_limit_mean + upper_limit_error;
+               std::uniform_real_distribution<double> distPt(0., upper_limit);
 
 
             double random_prob = distPt(rndSeed);
           //  cout << random_prob << endl;
-            if (candidate_pt_prob > random_prob){
+            if (candidate_pt_prob < random_prob){
             initCondition.push_back(partSel.user_index());
             maxPtCurrent+=partSel.pt();
           }
