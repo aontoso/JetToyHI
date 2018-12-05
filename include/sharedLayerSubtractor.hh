@@ -263,7 +263,7 @@ public :
         std::uniform_int_distribution<> distUni(0,ghosts.size()-1); //uniform distribution of ghosts in vector
         std::vector<int> initCondition;                           //list of particles in initial condition
 
-        double maxPt = rho_*jet.area();
+        double maxPt = (rho_-rhoSigma_)*jet.area();
         //make copy of particles so that a particle is not repeated inside the same initial condition
         std::vector<fastjet::PseudoJet> particlesNotUsed = particles;
 
@@ -274,9 +274,10 @@ public :
         std::vector<int> avail_part(particlesNotUsed.size());
       //  std::fill(avail.begin(),avail.end(),1);
         std::fill(avail_part.begin(),avail_part.end(),1);
+        int cutoff = int(particles.size()*0.95);
 
         while(maxPtCurrent<maxPt &&
-        std::accumulate(avail_part.begin(),avail_part.end(),0)>0) {
+        std::accumulate(avail_part.begin(),avail_part.end(),0)>cutoff) {
 
           //pick random ghost
           int ighost = int(std::floor(distUni(rndSeed)));
@@ -287,7 +288,7 @@ public :
           icandidate = findClosestParticles(particlesNotUsed, ighost, ghosts,1);
           int iparticle = 0;
           iparticle = icandidate.at(0);
-
+        //      if (ijet==8 && std::accumulate(avail_part.begin(),avail_part.end(),0)<8) std::cout<< "iparticle: " << iparticle << avail_part.at(iparticle) << endl;
     //      int iparticle = -1;
     //      if(closestPartToGhostNotUsed[ighost].size()>0) {
   //          iparticle = closestPartToGhostNotUsed[ighost][0];
@@ -309,6 +310,7 @@ public :
 
             double candidate_pt = partSel.pt();
             int candidate_ptbin = int(candidate_pt*nbins/ptmax)+1;
+
             if (candidate_pt > maxpt_bkgd) continue;
             double candidate_pt_mean = h_pt_constituents->GetBinContent(candidate_ptbin);
             double candidate_pt_error = h_pt_constituents->GetBinError(candidate_ptbin);
@@ -319,6 +321,14 @@ public :
                double upper_limit_mean = h_pt_constituents_jet->GetBinContent(candidate_ptbin);
                double upper_limit_error = h_pt_constituents_jet->GetBinError(candidate_ptbin);
                double upper_limit = upper_limit_mean + upper_limit_error;
+
+               if (upper_limit <= candidate_pt_prob){ //When the signal+background is below the background
+                  avail_part.at(iparticle) = 0;
+                  initCondition.push_back(partSel.user_index());
+                  maxPtCurrent+=partSel.pt();
+               }
+               else{
+
                std::uniform_real_distribution<double> distPt(0., upper_limit);
 
 
@@ -329,12 +339,12 @@ public :
             //  particlesNotUsed.erase(particlesNotUsed.begin()+iparticle); // remove the particle from the list
               initCondition.push_back(partSel.user_index());
               maxPtCurrent+=partSel.pt();
-              if (ijet==0) std::cout << "Added new particle with pt = " << partSel.pt() <<  " iparticle: " << iparticle << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt
-              << " Particles left: " << std::accumulate(avail_part.begin(),avail_part.end(),0) << endl;
-          }
-          else continue;
-        } // while loop
+          //    if (ijet==8) std::cout << "Added new particle with pt = " << partSel.pt() <<  " iparticle: " << iparticle << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt
+            //  << " Particles left: " << std::accumulate(avail_part.begin(),avail_part.end(),0) << endl;
+            } else continue;
+          } continue;
 
+        } // while loop
         if(maxPtCurrent>maxPt) {
          int initConditionSize_ = initCondition.size();
          double maxPtPrev = 0;
@@ -351,7 +361,7 @@ public :
         //}
         }
       }//initial conditions loop
-
+      //  cout << ijet << endl;
       //----------------------------------------------------------
       //Now we have the requested number of random initial condition
 
@@ -395,7 +405,7 @@ public :
 
       //create final UE object
       //----------------------------------------------------------
-      double maxPtFinalUE = rho_*jet.area();
+      double maxPtFinalUE = (rho_-rhoSigma_)*jet.area();
       double curPtFinalUE = 0.;
       double prevPtFinalUE = 0.;
 
