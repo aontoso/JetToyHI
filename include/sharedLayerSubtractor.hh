@@ -263,7 +263,7 @@ public :
         std::uniform_int_distribution<> distUni(0,ghosts.size()-1); //uniform distribution of ghosts in vector
         std::vector<int> initCondition;                           //list of particles in initial condition
 
-        double maxPt = (rho_-rhoSigma_)*jet.area();
+        double maxPt = rho_*jet.area();
         //make copy of particles so that a particle is not repeated inside the same initial condition
         std::vector<fastjet::PseudoJet> particlesNotUsed = particles;
 
@@ -274,7 +274,7 @@ public :
         std::vector<int> avail_part(particlesNotUsed.size());
       //  std::fill(avail.begin(),avail.end(),1);
         std::fill(avail_part.begin(),avail_part.end(),1);
-        int cutoff = int(particles.size()*0.95);
+        int cutoff = int(particles.size()*0.1);
 
         while(maxPtCurrent<maxPt &&
         std::accumulate(avail_part.begin(),avail_part.end(),0)>cutoff) {
@@ -339,8 +339,7 @@ public :
             //  particlesNotUsed.erase(particlesNotUsed.begin()+iparticle); // remove the particle from the list
               initCondition.push_back(partSel.user_index());
               maxPtCurrent+=partSel.pt();
-          //    if (ijet==8) std::cout << "Added new particle with pt = " << partSel.pt() <<  " iparticle: " << iparticle << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt
-            //  << " Particles left: " << std::accumulate(avail_part.begin(),avail_part.end(),0) << endl;
+            //  if (ijet==8) std::cout << "Added new particle with pt = " << partSel.pt() <<  " iparticle: " << iparticle << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(avail_part.begin(),avail_part.end(),0) << endl;
             } else continue;
           } continue;
 
