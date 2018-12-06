@@ -263,7 +263,8 @@ public :
         std::uniform_int_distribution<> distUni(0,ghosts.size()-1); //uniform distribution of ghosts in vector
         std::vector<int> initCondition;                           //list of particles in initial condition
 
-        double maxPt = rho_*jet.area();
+        double maxPt = (rho_-rhoSigma_)*jet.area();
+        int rejection = 0;
         //make copy of particles so that a particle is not repeated inside the same initial condition
         std::vector<fastjet::PseudoJet> particlesNotUsed = particles;
 
@@ -274,11 +275,11 @@ public :
         std::vector<int> avail_part(particlesNotUsed.size());
       //  std::fill(avail.begin(),avail.end(),1);
         std::fill(avail_part.begin(),avail_part.end(),1);
-        int cutoff = int(particles.size()*0.1);
-
+      //  int cutoff = int(particles.size());
+        int cutoff_rejection = 100;
         while(maxPtCurrent<maxPt &&
-        std::accumulate(avail_part.begin(),avail_part.end(),0)>cutoff) {
-
+        std::accumulate(avail_part.begin(),avail_part.end(),0)>3) {
+          //cout << rejection << endl;
           //pick random ghost
           int ighost = int(std::floor(distUni(rndSeed)));
           if(ighost>=ghosts.size()) continue;
@@ -297,10 +298,23 @@ public :
     //        continue;
 
           int ipSel = 0; // make sure you do not repeat a particle
+          int candidate = 0;
           if (avail_part.at(iparticle)!=0){
             ipSel = iparticle;
+            rejection = 0;}
+          else {rejection++;
+          if (rejection > cutoff_rejection){
+            for (int i=0; i<particles.size(); i++){
+              if(avail_part.at(i)!=0) {candidate=i;
+                continue;
+              }
             }
-           else continue;
+            ipSel = candidate;
+          }
+          else continue;
+          }
+            // cout << rejection << endl;ontinue;
+           //};
 
           fastjet::PseudoJet partSel = particlesNotUsed[ipSel];
 
@@ -323,7 +337,7 @@ public :
                double upper_limit = upper_limit_mean + upper_limit_error;
 
                if (upper_limit <= candidate_pt_prob){ //When the signal+background is below the background
-                  avail_part.at(iparticle) = 0;
+                  avail_part.at(ipSel) = 0;
                   initCondition.push_back(partSel.user_index());
                   maxPtCurrent+=partSel.pt();
                }
@@ -332,16 +346,17 @@ public :
                std::uniform_real_distribution<double> distPt(0., upper_limit);
 
 
-            double random_prob = distPt(rndSeed);
+               double random_prob = distPt(rndSeed);
           //  cout << random_prob << endl;
-            if (candidate_pt_prob < random_prob){
-              avail_part.at(iparticle) = 0; // remove the particle from the list
+              if (candidate_pt_prob < random_prob){
+              avail_part.at(ipSel) = 0; // remove the particle from the list
             //  particlesNotUsed.erase(particlesNotUsed.begin()+iparticle); // remove the particle from the list
               initCondition.push_back(partSel.user_index());
               maxPtCurrent+=partSel.pt();
-            //  if (ijet==8) std::cout << "Added new particle with pt = " << partSel.pt() <<  " iparticle: " << iparticle << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(avail_part.begin(),avail_part.end(),0) << endl;
+          //    std::cout << "Added new particle with pt = " << partSel.pt() <<  " iparticle: " << ipSel << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(avail_part.begin(),avail_part.end(),0) << endl;
             } else continue;
-          } continue;
+           } continue;
+
 
         } // while loop
         if(maxPtCurrent>maxPt) {
@@ -359,6 +374,7 @@ public :
           collInitCond.push_back(initCondition); //avoid putting in a initial condition for which not enough particles were available anymore to get to the required pT. Might be an issue for sparse events.
         //}
         }
+      //  cout << "ijet: " << ijet << "MaxPt: " << maxPtCurrent << endl;
       }//initial conditions loop
       //  cout << ijet << endl;
       //----------------------------------------------------------
@@ -419,6 +435,7 @@ public :
        else {
          fjJetParticles_.push_back(part);}
       }
+    //  cout << "ijet: " << ijet << "PtFinalUE: " << curPtFinalUE << endl;
       if(bkgd_particles.size()>0){
       int bkgd_particles_size = bkgd_particles.size();
       fastjet::PseudoJet last_bkg_part = bkgd_particles.at(bkgd_particles_size-1);
