@@ -181,6 +181,7 @@ public :
 
         for(fastjet::PseudoJet p : particles) {
             h_pt_constituents->Fill(p.pt());
+          //  cout << p.user_info<PU14>().vertex_number() << endl;
             jet_mass_energy+=p.E();
             jet_mass_px+=p.px();
             jet_mass_py+=p.py();
@@ -286,11 +287,14 @@ public :
       delete h_jet;
       TH1D *h_pt_constituents_jet = new TH1D("p_{T} const jet", "p_{T} const jet", 100., 0.,maxpt_bkgd);
 
-    for(fastjet::PseudoJet p : particles) {
+      // Obtain the true rho for each patch by using only the background particles
+      double trueRho = 0;
+      for(fastjet::PseudoJet p : particles) {
       double momentum = p.pt();
       if (momentum<=maxpt_bkgd){
       h_pt_constituents_jet->Fill(momentum);
       }
+      if (p.user_info<PU14>().vertex_number() == 1) trueRho+=p.pt();
      }
 
      h_pt_constituents_jet->Sumw2();
@@ -315,20 +319,25 @@ public :
       for(int ii = 0; ii<nInitCond_; ++ii) {
         std::uniform_int_distribution<> distUni(0,ghosts.size()); //uniform distribution of ghosts in vector
         std::vector<int> initCondition;                           //list of particles in initial condition
-        int length = particles.size();
-        Double_t pt_progress[length];
-        int step = 0;
-        Double_t n_steps[length];
-        Double_t mass_progress[length];
-        Double_t rhom_progress[length];
-        double maxPt = rho_*jet.area();
-        double maxRhoM = rhoM_*jet.area();
-        for (int j=0; j<length; j++){
-          pt_progress[j]=0;
-          n_steps[j] = 0;
-          mass_progress[j] = 0;
-          rhom_progress[j] = 0;
-        }
+      //  int length = particles.size();
+    //    Double_t pt_progress[length];
+      //  int step = 0;
+      //  Double_t n_steps[length];
+      //  Double_t mass_progress[length];
+      //  Double_t rhom_progress[length];
+      //  double maxPt = rho_*jet.area();
+      //  double maxPtSigma = rhoSigma_*jet.area();
+      //  double maxRhoM = rhoM_*jet.area();
+    //   double maxRhoMSigma = rhoMSigma_*jet.area();
+
+      //  if (ijet==0 && ii ==0) cout << "True rho: " << trueRho << "Median rho: " << maxPt << endl;
+
+      //  for (int j=0; j<length; j++){
+      //    pt_progress[j]=0;
+      //    n_steps[j] = 0;
+      //    mass_progress[j] = 0;
+      //    rhom_progress[j] = 0;
+      //  }
       //if (ii==0)  cout << maxPt << endl;
       //  int rejection = 0;
         //make copy of particles so that a particle is not repeated inside the same initial condition
@@ -337,11 +346,11 @@ public :
         std::vector<std::vector<int>> closestPartToGhostNotUsed = closestPartToGhost;
 
         double maxPtCurrent = 0.;
-        double mass_energyCurrent = 0;
-        double mass_pxCurrent = 0;
-        double mass_pyCurrent = 0;
-        double mass_pzCurrent = 0;
-        double maxRhoMCurrent = 0;
+    //    double mass_energyCurrent = 0;
+    //    double mass_pxCurrent = 0;
+    //    double mass_pyCurrent = 0;
+    //    double mass_pzCurrent = 0;
+    //    double maxRhoMCurrent = 0;
 
         std::vector<int> avail(closestPartToGhost.size());
         std::vector<int> avail_part(particlesNotUsed.size());
@@ -352,7 +361,7 @@ public :
       //  maxpt_bkgd = 3;
       //  int cutoff = int(particles.size());
       //  int cutoff_rejection = 100;
-         while(maxPtCurrent<maxPt &&
+         while(maxPtCurrent<trueRho &&
          std::accumulate(avail_part.begin(),avail_part.end(),0)>0
          && std::accumulate(avail.begin(),avail.end(),0)>0){
           //cout << rejection << endl;
@@ -407,18 +416,18 @@ public :
                   initCondition.push_back(partSel.user_index());
                   maxPtCurrent+=partSel.pt();
 
-                  mass_energyCurrent+=partSel.E();
-                  mass_pxCurrent+=partSel.px();
-                  mass_pyCurrent+=partSel.py();
-                  mass_pzCurrent+=partSel.pz();
+                //  mass_energyCurrent+=partSel.E();
+                //  mass_pxCurrent+=partSel.px();
+                //  mass_pyCurrent+=partSel.py();
+                //  mass_pzCurrent+=partSel.pz();
 
-                  maxRhoMCurrent+=sqrt(pow(partSel.m(),2)+pow(partSel.pt(),2))-partSel.pt();
+                //  maxRhoMCurrent+=sqrt(pow(partSel.m(),2)+pow(partSel.pt(),2))-partSel.pt();
 
-                  pt_progress[step] = maxPtCurrent;
-                  mass_progress[step] = pow(mass_energyCurrent,2)-pow(mass_pxCurrent,2)-pow(mass_pyCurrent,2)-pow(mass_pzCurrent,2);
-                  rhom_progress[step] = maxRhoMCurrent;
-                  n_steps[step] = step;
-                  step++;
+                  //pt_progress[step] = maxPtCurrent;
+                  //mass_progress[step] = pow(mass_energyCurrent,2)-pow(mass_pxCurrent,2)-pow(mass_pyCurrent,2)-pow(mass_pzCurrent,2);
+                  //rhom_progress[step] = maxRhoMCurrent;
+                  //n_steps[step] = step;
+                //  step++;
                 //  n_steps[step] = step;
         //         if (ijet==0 && ii==0)    std::cout << "Downward Added new particle with pt = " << partSel.phi() <<  " iparticle: " << ipSel << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(part_accepted.begin(),part_accepted.end(),0) << endl;
                }
@@ -433,18 +442,18 @@ public :
                  initCondition.push_back(partSel.user_index());
                  maxPtCurrent+=partSel.pt();
 
-                 maxRhoMCurrent+=sqrt(pow(partSel.m(),2)+pow(partSel.pt(),2))-partSel.pt();
+            //     maxRhoMCurrent+=sqrt(pow(partSel.m(),2)+pow(partSel.pt(),2))-partSel.pt();
 
-                 mass_energyCurrent+=partSel.E();
-                 mass_pxCurrent+=partSel.px();
-                 mass_pyCurrent+=partSel.py();
-                 mass_pzCurrent+=partSel.pz();
+              //   mass_energyCurrent+=partSel.E();
+              //   mass_pxCurrent+=partSel.px();
+              //   mass_pyCurrent+=partSel.py();
+              //   mass_pzCurrent+=partSel.pz();
 
-                 pt_progress[step] = maxPtCurrent;
-                 rhom_progress[step] = maxRhoMCurrent;
-                 mass_progress[step] = pow(mass_energyCurrent,2)-pow(mass_pxCurrent,2)-pow(mass_pyCurrent,2)-pow(mass_pzCurrent,2);
-                 n_steps[step] = step;
-                 step++;
+              //   pt_progress[step] = maxPtCurrent;
+              //   rhom_progress[step] = maxRhoMCurrent;
+              //   mass_progress[step] = pow(mass_energyCurrent,2)-pow(mass_pxCurrent,2)-pow(mass_pyCurrent,2)-pow(mass_pzCurrent,2);
+              //   n_steps[step] = step;
+              //   step++;
         //  if (ijet==0 && ii==0)    std::cout << "Added new particle with pt = " << partSel.pt() <<  " iparticle: " << ipSel << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(part_accepted.begin(),part_accepted.end(),0) << endl;
             } else continue;
            } continue;
@@ -452,9 +461,9 @@ public :
 
         //Complete the list
 
-        if (maxPtCurrent<maxPt &&
+        if (maxPtCurrent<trueRho &&
            std::accumulate(part_accepted.begin(),part_accepted.end(),0)>0){
-          while(maxPtCurrent<maxPt){
+          while(maxPtCurrent<trueRho){
             int ipSelected = 0;
             int candidate = 0;
       //    if (ijet==0 && ii==0)  cout << particles.size() << endl;
@@ -500,24 +509,24 @@ public :
               fastjet::PseudoJet partSel = particlesNotUsed[ipSelected];
               maxPtCurrent+=partSel.pt();
 
-              mass_energyCurrent+=partSel.E();
-              mass_pxCurrent+=partSel.px();
-              mass_pyCurrent+=partSel.py();
-              mass_pzCurrent+=partSel.pz();
+      //        mass_energyCurrent+=partSel.E();
+      //        mass_pxCurrent+=partSel.px();
+      //        mass_pyCurrent+=partSel.py();
+      //        mass_pzCurrent+=partSel.pz();
 
-              maxRhoMCurrent+=sqrt(pow(partSel.m(),2)+pow(partSel.pt(),2))-partSel.pt();
+        //      maxRhoMCurrent+=sqrt(pow(partSel.m(),2)+pow(partSel.pt(),2))-partSel.pt();
 
-              mass_progress[step]=pow(mass_energyCurrent,2)-pow(mass_pxCurrent,2)-pow(mass_pyCurrent,2)-pow(mass_pzCurrent,2);
-              pt_progress[step] = maxPtCurrent;
-              n_steps[step] = step;
-              rhom_progress[step] = maxRhoMCurrent;
-              step++;
+          //    mass_progress[step]=pow(mass_energyCurrent,2)-pow(mass_pxCurrent,2)-pow(mass_pyCurrent,2)-pow(mass_pzCurrent,2);
+        //      pt_progress[step] = maxPtCurrent;
+        //      n_steps[step] = step;
+        //      rhom_progress[step] = maxRhoMCurrent;
+        //      step++;
               //    mass_progress[step]=pow(mass_energyCurrent,2)-pow(mass_pxCurrent,2)-pow(mass_pyCurrent,2)-pow(mass_pzCurrent,2);
       //        if (ijet==0 && ii==0)    std::cout << " Second way Added new particle with pt = " << partSel.phi() <<  " iparticle: " << ipSel << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(part_accepted.begin(),part_accepted.end(),0) << endl;
               initCondition.push_back(partSel.user_index());
           }
         } //
-        if(maxPtCurrent>maxPt) {
+        if(maxPtCurrent>trueRho) {
          int initConditionSize_ = initCondition.size();
          double maxPtPrev = 0;
          std::vector<fastjet::PseudoJet> initCondParticles;
@@ -525,8 +534,8 @@ public :
             initCondParticles.push_back(particles[initCondition[ic]]);
             maxPtPrev+=initCondParticles.at(ic).pt();
           }
-          double distance_one = sqrt((maxPt-maxPtCurrent)*(maxPt-maxPtCurrent));
-          double distance_two = sqrt((maxPt-maxPtPrev)*(maxPt-maxPtPrev));
+          double distance_one = sqrt((trueRho-maxPtCurrent)*(trueRho-maxPtCurrent));
+          double distance_two = sqrt((trueRho-maxPtPrev)*(trueRho-maxPtPrev));
 
           if (distance_one > distance_two) {
         //    if(ijet==0) cout<<"yes"<< maxPtPrev<<endl;
@@ -537,24 +546,28 @@ public :
         //}
       // cout <<  pow(mass_energyCurrent,2)-pow(mass_pxCurrent,2)-pow(mass_pyCurrent,2)-pow(mass_pzCurrent,2) << endl;
         }
-        if (ijet == 0 && ii ==1) {
-          int nsteps = step;
-          TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
+      //  if (ijet == 0 && ii == 1) {
+    //      int nsteps = step;
+      //    TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
         //  TGraph *mass_evolution = new TGraph(nsteps,mass_progress, pt_progress);
-          TGraph *rhom_evolution = new TGraph(nsteps,rhom_progress, pt_progress);
-          rhom_evolution->Draw("AP");
-          Double_t medianPt[nsteps];
-          Double_t medianMass[nsteps];
-          for (int i=0; i<nsteps; i++){
-            medianMass[i] = maxRhoM;
-            medianPt[i] = maxPt;
-          }
-          TGraph *mass_median = new TGraph(nsteps, medianMass, pt_progress);
-          mass_median->Draw("SAME");
-          TGraph *pt_median = new TGraph(nsteps, rhom_progress, medianPt);
-          pt_median->Draw("SAME");
-          c1->SaveAs("Prueba_4.C");
-        }
+      //    TGraph *rhom_evolution = new TGraph(nsteps,rhom_progress, pt_progress);
+      //    rhom_evolution->Draw("AP");
+      //    cout << "maxRhoM: " << maxRhoM << endl;
+      //    cout << "maxPt: " << maxPt << endl;
+      //    cout << "maxPtSigma: " << maxPtSigma << endl;
+      //    cout << "maxRhoMSigma: " << maxRhoMSigma << endl;
+        //  Double_t medianPt[nsteps];
+        //  Double_t medianMass[nsteps];
+        //  for (int i=0; i<nsteps; i++){
+        //    medianMass[i] = maxRhoM;
+        //    medianPt[i] = maxPt;
+        //  }
+        //  TGraph *mass_median = new TGraph(nsteps, medianMass, pt_progress);
+      //    mass_median->Draw("SAME");
+        //  TGraph *pt_median = new TGraph(nsteps, rhom_progress, medianPt);
+        //  pt_median->Draw("SAME");
+        //  c1->SaveAs("Prueba_4.C");
+        //}
       //  cout << "ijet: " << ijet << "MaxPt: " << maxPtCurrent << endl;
       }//initial conditions loop
       //  cout << ijet << endl;
@@ -563,7 +576,7 @@ public :
 
       //Next step: calc chi2 for each initial condition
       //----------------------------------------------------------
-       std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_invariant_mass, rms_invariant_mass); //
+       std::vector<double> chi2s = calculateChi2s(collInitCond, particles, med_pTD, rms_pTD); //
 
        fChi2s_.push_back(chi2s);
 
@@ -602,7 +615,7 @@ public :
                 [&share_idx](size_t i1, size_t i2) {return share_idx[i1] > share_idx[i2];});
       //create final UE object
       //----------------------------------------------------------
-      double maxPtFinalUE = rho_*jet.area();
+      double maxPtFinalUE = trueRho;
       double curPtFinalUE = 0.;
       double prevPtFinalUE = 0.;
 
@@ -707,7 +720,7 @@ public :
   }
 
 
-  std::vector<double> calculateChi2s(std::vector<std::vector<int> > collInitCond, std::vector<fastjet::PseudoJet> particles, double med_invariant_mass, double rms_invariant_mass) {
+  std::vector<double> calculateChi2s(std::vector<std::vector<int> > collInitCond, std::vector<fastjet::PseudoJet> particles, double med_pTD, double rms_pTD) {
     // calc chi2 for each initial condition
 
     std::vector<double> chi2s;
@@ -720,9 +733,9 @@ public :
           combinedparticles.push_back(particles[indices[ic]]);
         }
         fastjet::PseudoJet currInitJet = fastjet::PseudoJet(join(combinedparticles));
-        //double pTDCur = pTD_.result(currInitJet);
-        double massCur = currInitJet.m();
-        chi2 = fabs(massCur-med_invariant_mass)*(fabs(massCur-med_invariant_mass))/rms_invariant_mass/rms_invariant_mass;
+        double pTDCur = pTD_.result(currInitJet);
+        //double massCur = currInitJet.m();
+        chi2 = fabs(pTDCur-med_pTD)*(fabs(pTDCur-med_pTD))/rms_pTD/rms_pTD;
       }
       chi2s.push_back(chi2);
     }
