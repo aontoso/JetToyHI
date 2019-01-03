@@ -11,6 +11,8 @@
 #include <numeric>
 #include "TH1.h"
 #include "TROOT.h"
+#include "TGraph.h"
+#include "TF1.h"
 
 
 #include "fastjet/PseudoJet.hh"
@@ -91,6 +93,11 @@ public :
   double getPTDBkg() const { return pTDbkg_; }
   double getPTDBkgSigma() const { return pTDbkgSigma_; }
 
+  // By calling this function we can get the value of the "real" pt given the linear assumption
+  double correlation_function(double intercept, double slope, int n_constituents){
+  return intercept+slope*n_constituents;
+  };
+
   std::vector<std::vector<double>> getChi2s() const { return fChi2s_; }
   std::vector<std::vector<int>> getNShared() const { return fShare_; }
   void clearMemory() {
@@ -144,16 +151,38 @@ public :
     std::vector<double> mass_bkgd;
     double maxpt_bkgd = 0;
 
+    // We want to parametrize the dependence of the pt of each patch on the number of constituents it contains
+
+    int nbkgd_jets = int(bkgd_jets.size());
+    double nconstituents_patch[nbkgd_jets];
+    double pt_patch[nbkgd_jets];
+    int i = 0;
+
     for(fastjet::PseudoJet& jet : bkgd_jets) {
+      int nparticles = 0;
       std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
         fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
-
+        pt_patch[i] = jet.pt();
      // Find the maximum-pt of the background
        for(fastjet::PseudoJet p : particles) {
             double momentum = p.pt();
+            nparticles++;
             if (momentum > maxpt_bkgd) maxpt_bkgd = momentum;
          }
+         nconstituents_patch[i] = nparticles;
+         i++;
        } // bkgd_jets loop
+
+       // Linear fit of pt as a function of nconstituents
+       TGraph *f_pt_vs_nconstituents = 0;
+      // delete graph;
+       f_pt_vs_nconstituents = new TGraph(nbkgd_jets, nconstituents_patch, pt_patch);
+       TF1 *linear_fit = new TF1("linear_fit","[0]+[1]*x",0,400);
+       f_pt_vs_nconstituents->Fit(linear_fit);
+       Double_t par0 = linear_fit->GetParameter(0); //value of intercept
+       Double_t par1 = linear_fit->GetParameter(1); // value of slope
+
+       cout << correlation_function(par0,par1,20) << endl;
 
         TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
         delete h;
