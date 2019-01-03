@@ -68,7 +68,7 @@ public :
                         double ghostArea = 0.001,
                         double ghostRapMax = 3.0,
                         double jetRapMax = 3.0,
-                        int nInitCond = 2.,
+                        int nInitCond = 1.,
                         int nTopInit = 1.) :
     jetRParam_(rJet),
     ghostArea_(ghostArea),
@@ -433,12 +433,13 @@ public :
       //        if (ijet==0 && ii==0)    std::cout << " Second way Added new particle with pt = " << partSel.phi() <<  " iparticle: " << ipSel << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(part_accepted.begin(),part_accepted.end(),0) << endl;
               initCondition.push_back(partSel.user_index());
           }
-        }
+        } // Complete the list loop
+
         if(maxPtCurrent>maxPt) {
          int initConditionSize_ = initCondition.size();
          double maxPtPrev = 0;
          std::vector<fastjet::PseudoJet> initCondParticles;
-          for(int ic = 0; ic<initConditionSize_; ++ic) {
+          for(int ic = 0; ic<initConditionSize_-1; ++ic) { // all particles except the last one
             initCondParticles.push_back(particles[initCondition[ic]]);
             maxPtPrev+=initCondParticles.at(ic).pt();
           }
@@ -446,14 +447,49 @@ public :
           double distance_two = sqrt((maxPt-maxPtPrev)*(maxPt-maxPtPrev));
 
           if (distance_one > distance_two) {
-        //    if(ijet==0) cout<<"yes"<< maxPtPrev<<endl;
             initCondition.pop_back();
 
-          }
-          collInitCond.push_back(initCondition); //avoid putting in a initial condition for which not enough particles were available anymore to get to the required pT. Might be an issue for sparse events.
+          } // At this point we have one candidate initial condition
+
+          //------------------------------------------------------------------
+          // Check the difference between the pT of the initial condition and the one coming from Marta's Minimal Subtraction method
+
+          int nparticles_initcond = initCondition.size();
+          double pT_mms = correlation_function(par0,par1,nparticles_initcond);
+          double pT_initCond = 0;
+          std::vector<fastjet::PseudoJet> initCondParticles_candidate;
+           for(int ic = 0; ic<nparticles_initcond; ++ic) {
+             initCondParticles_candidate.push_back(particles[initCondition[ic]]);
+             pT_initCond+=initCondParticles_candidate.at(ic).pt();
+           }
+
+          if(pT_initCond>pT_mms){              // Remove particles until you reach pT_mms
+            double pT_new = pT_initCond;
+            while (pT_new >= pT_mms){
+            pT_new=0;
+            initCondition.pop_back(); // remove the last particle
+            int nparticles_new = initCondition.size();
+            std::vector<fastjet::PseudoJet> initCondParticles_new;
+            for(int ic = 0; ic<nparticles_new; ++ic) { // all particles except the last one
+            initCondParticles_new.push_back(particles[initCondition[ic]]);
+            pT_new+=initCondParticles_new.at(ic).pt();
+             } // Compute the new pT of the initial condition
+            }
+             //if (ijet==5) cout << "Original: "<< pT_initCond << " MMS: " << pT_mms << " New one: " << pT_new << endl;
+           }
+
+
+          //if(pT_initCond<pT_mms){              // Add particles until you reach pT_mms
+
+
+          //}
+
+          collInitCond.push_back(initCondition);
         //}
-        }
-      //  cout << "ijet: " << ijet << "MaxPt: " << maxPtCurrent << endl;
+      }
+
+
+
       }//initial conditions loop
       //  cout << ijet << endl;
       //----------------------------------------------------------
