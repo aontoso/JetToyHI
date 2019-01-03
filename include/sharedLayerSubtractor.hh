@@ -178,11 +178,10 @@ public :
       // delete graph;
        f_pt_vs_nconstituents = new TGraph(nbkgd_jets, nconstituents_patch, pt_patch);
        TF1 *linear_fit = new TF1("linear_fit","[0]+[1]*x",0,400);
-       f_pt_vs_nconstituents->Fit(linear_fit);
+       f_pt_vs_nconstituents->Fit(linear_fit, "Q");
        Double_t par0 = linear_fit->GetParameter(0); //value of intercept
        Double_t par1 = linear_fit->GetParameter(1); // value of slope
 
-       cout << correlation_function(par0,par1,20) << endl;
 
         TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
         delete h;
