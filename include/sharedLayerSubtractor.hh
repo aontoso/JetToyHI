@@ -11,9 +11,6 @@
 #include <numeric>
 #include "TH1.h"
 #include "TROOT.h"
-#include "TGraph.h"
-#include "TF1.h"
-#include "TCanvas.h"
 
 
 #include "fastjet/PseudoJet.hh"
@@ -69,7 +66,7 @@ public :
                         double ghostArea = 0.001,
                         double ghostRapMax = 3.0,
                         double jetRapMax = 3.0,
-                        int nInitCond = 1.,
+                        int nInitCond = 2.,
                         int nTopInit = 1.) :
     jetRParam_(rJet),
     ghostArea_(ghostArea),
@@ -93,14 +90,6 @@ public :
 
   double getPTDBkg() const { return pTDbkg_; }
   double getPTDBkgSigma() const { return pTDbkgSigma_; }
-
-  // By calling this function we can get the value of the "real" pt given the linear assumption
-  double correlation_function(double intercept, double slope, int n_constituents){
-  return intercept+slope*n_constituents;
-  };
-  double error_correlation_function(double error_slope, int n_constituents){
-    return error_slope*n_constituents;
-  }
 
   std::vector<std::vector<double>> getChi2s() const { return fChi2s_; }
   std::vector<std::vector<int>> getNShared() const { return fShare_; }
@@ -155,39 +144,16 @@ public :
     std::vector<double> mass_bkgd;
     double maxpt_bkgd = 0;
 
-    // We want to parametrize the dependence of the pt of each patch on the number of constituents it contains
-
-    int nbkgd_jets = int(bkgd_jets.size());
-    double nconstituents_patch[nbkgd_jets];
-    double pt_patch[nbkgd_jets];
-    int i = 0;
-
     for(fastjet::PseudoJet& jet : bkgd_jets) {
-      int nparticles = 0;
       std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
         fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
-        pt_patch[i] = jet.pt();
+
      // Find the maximum-pt of the background
        for(fastjet::PseudoJet p : particles) {
             double momentum = p.pt();
-            nparticles++;
             if (momentum > maxpt_bkgd) maxpt_bkgd = momentum;
          }
-         nconstituents_patch[i] = nparticles;
-         i++;
        } // bkgd_jets loop
-       // Linear fit of pt as a function of nconstituents
-       TGraph *f_pt_vs_nconstituents = 0;
-      // delete graph;
-       f_pt_vs_nconstituents = new TGraph(nbkgd_jets, nconstituents_patch, pt_patch);
-       TF1 *linear_fit = 0;
-       linear_fit = new TF1("linear_fit","[0]+[1]*x",0,400);
-      // linear_fit->SetParLimits(0, 0, 1);
-       f_pt_vs_nconstituents->Fit(linear_fit, "Q");
-       Double_t par0 = linear_fit->GetParameter(0); //value of intercept
-       Double_t par1 = linear_fit->GetParameter(1); // value of slope
-       Double_t error1 = linear_fit->GetParError(1); // error value of slope
-
 
         TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
         delete h;
@@ -248,45 +214,18 @@ public :
 
      std::vector<fastjet::PseudoJet> subtracted_jets;
      subtracted_jets.reserve(jets.size());
-     int ijet = 0;
-
-     for(fastjet::PseudoJet& jet : jets) {
-       if(jet.is_pure_ghost()) continue;
-       std::vector<fastjet::PseudoJet> particles, ghosts;
-       fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
-       if(particles.size()<1 || jet.pt()<1.) continue;
-       ++ijet;
-     }
-      int njets = ijet;
-
-  //  double trueRho_array[njets];
-  //  double trueNconst_array[njets];
-  //  double medianRho_array[njets];
-  //  double medianNconst_array[njets];
-  //  double mmsRho_array[njets];
-  //  double mmsNconst_array[njets];
+     int ijet = -1;
 
 
-  //  for (int i=0; i<njets; i++){
-  //    trueRho_array[i] = 0;
-  //    trueNconst_array[i] = 0;
-  //    medianRho_array[i] = 0;
-  //    medianNconst_array[i] = 0;
-  //    mmsRho_array[i] = 0;
-  //    mmsNconst_array[i] = 0;
-
-  //  }
-    ijet = -1;
     for(fastjet::PseudoJet& jet : jets) {
       ++ijet;
       if(jet.is_pure_ghost()) continue;
-
+      //cout << ijet << endl;
       //get ghosts and true particles (ghosts are distributed uniformly which we will use to create initial conditions)
       //----------------------------------------------------------
       std::vector<fastjet::PseudoJet> particles, ghosts;
       fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
       if(particles.size()<1 || jet.pt()<1.) continue;
-    //  cout <<ijet <<endl;
       std::random_shuffle(particles.begin(), particles.end()); // randomize the vector
       std::random_shuffle(ghosts.begin(),ghosts.end());
 
@@ -296,23 +235,12 @@ public :
       delete h_jet;
       TH1D *h_pt_constituents_jet = new TH1D("p_{T} const jet", "p_{T} const jet", 100., 0.,maxpt_bkgd);
 
-    // Obtain also the true pT
-    double trueRho = 0;
-    double trueNconst = 0;
     for(fastjet::PseudoJet p : particles) {
       double momentum = p.pt();
       if (momentum<=maxpt_bkgd){
       h_pt_constituents_jet->Fill(momentum);
       }
-      //if (p.user_info<PU14>().vertex_number() == 1)
-      trueRho+=momentum;
-        trueNconst++;
-    // }
-   }
- cout << particles.size() << trueNconst << endl;
-   //cout << particles.size() << endl;
-  //   trueRho_array[ijet] = trueRho;
-  //   trueNconst_array[ijet] = trueNconst;
+     }
 
      h_pt_constituents_jet->Sumw2();
      int nentries_jet = h_pt_constituents_jet->GetEntries();
@@ -333,13 +261,11 @@ public :
       // create requested number of initial conditions
       //----------------------------------------------------------
       std::vector<std::vector<int>> collInitCond;
-      double pT_initialCondition;
       for(int ii = 0; ii<nInitCond_; ++ii) {
         std::uniform_int_distribution<> distUni(0,ghosts.size()); //uniform distribution of ghosts in vector
         std::vector<int> initCondition;                           //list of particles in initial condition
-        pT_initialCondition = 0;
+
         double maxPt = rho_*jet.area();
-      //  cout<<maxPt<<endl;
       //  int rejection = 0;
         //make copy of particles so that a particle is not repeated inside the same initial condition
         std::vector<fastjet::PseudoJet> particlesNotUsed = particles;
@@ -359,7 +285,11 @@ public :
          while(maxPtCurrent<maxPt &&
          std::accumulate(avail_part.begin(),avail_part.end(),0)>0
          && std::accumulate(avail.begin(),avail.end(),0)>0){
+          //cout << rejection << endl;
+          //pick random ghost
 
+        //      if (ijet==8 && std::accumulate(avail_part.begin(),avail_part.end(),0)<8) std::cout<< "iparticle: " << iparticle << avail_part.at(iparticle) << endl;
+    //      int iparticle = -1;
     //pick random ghost
         int ighost = int(std::floor(distUni(rndSeed)));
         if(ighost>=ghosts.size()) continue;
@@ -372,7 +302,7 @@ public :
         } else
         continue;
 
-     int ipSel = -1; // make sure you do not repeat a particle
+     int ipSel = 0; // make sure you do not repeat a particle
      if (avail_part.at(iparticle)!=0){
       ipSel = iparticle;
       avail_part.at(iparticle) = 0;
@@ -402,40 +332,39 @@ public :
                double upper_limit = upper_limit_mean + upper_limit_error;
 
                if (upper_limit <= candidate_pt_prob){ //When the signal+background is below the background
-
+                //  avail_part.at(ipSel) = 0;
                   part_accepted.at(ipSel) = 0;
                   initCondition.push_back(partSel.user_index());
                   maxPtCurrent+=partSel.pt();
-
+        //         if (ijet==0 && ii==0)    std::cout << "Downward Added new particle with pt = " << partSel.phi() <<  " iparticle: " << ipSel << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(part_accepted.begin(),part_accepted.end(),0) << endl;
                }
                else{
 
                std::uniform_real_distribution<double> distPt(0., upper_limit);
 
                double random_prob = distPt(rndSeed);
-
+          //  cout << random_prob << endl;
               if (candidate_pt_prob > random_prob){
                  part_accepted.at(ipSel) = 0;
                  initCondition.push_back(partSel.user_index());
                  maxPtCurrent+=partSel.pt();
-
+        //  if (ijet==0 && ii==0)    std::cout << "Added new particle with pt = " << partSel.pt() <<  " iparticle: " << ipSel << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(part_accepted.begin(),part_accepted.end(),0) << endl;
             } else continue;
            } continue;
         } // while loop
 
         //Complete the list
+
         if (maxPtCurrent<maxPt &&
            std::accumulate(part_accepted.begin(),part_accepted.end(),0)>0){
-          while(maxPtCurrent<maxPt&&
-             std::accumulate(part_accepted.begin(),part_accepted.end(),0)>0){
+          while(maxPtCurrent<maxPt && std::accumulate(part_accepted.begin(),part_accepted.end(),0)>1){
             int ipSelected = 0;
-          //  int candidate = -1;
-
+            int candidate = -1;
+      //    if (ijet==0 && ii==0)  cout << particles.size() << endl;
             for (int i=0; i<particles.size(); i++){
-
+        //    if (ijet==0 && ii==0)  cout << "Particula:"<< part_accepted.at(i)<< "pt " << particles[i].pt()<< endl;
               if(part_accepted.at(i)!=0 && particles[i].pt()<maxpt_bkgd)
                { double candidate_pt = particles[i].pt();
-              //   if (ijet==134) cout << candidate_pt << endl;
                  int candidate_ptbin = int(candidate_pt*nbins/ptmax)+1;
                  double candidate_pt_mean = h_pt_constituents->GetBinContent(candidate_ptbin);
                  double candidate_pt_error = h_pt_constituents->GetBinError(candidate_ptbin);
@@ -446,21 +375,22 @@ public :
                  double upper_limit = upper_limit_mean + upper_limit_error;
 
                  if (upper_limit <= candidate_pt_prob){ //When the signal+background is below the background
+                  //  avail_part.at(ipSel) = 0;
                     candidate=i;
                     part_accepted.at(i) = 0;
                     break;
-
+          //         if (ijet==0 && ii==0)    std::cout << "Downward Added new particle with pt = " << partSel.phi() <<  " iparticle: " << ipSel << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(part_accepted.begin(),part_accepted.end(),0) << endl;
                  }
                else{
                  std::uniform_real_distribution<double> distPt(0., upper_limit);
 
                  double random_prob = distPt(rndSeed);
-                if (candidate_pt_prob > random_prob){
-                   candidate = i;
+            //  cout << random_prob << endl;
+                if (candidate_pt_prob >= random_prob){
+                  candidate = i;
                    part_accepted.at(i) = 0;
-          //        if (ijet==134) cout << "yes" << candidate << endl;
                 break;
-
+          //  if (ijet==0 && ii==0)    std::cout << "Added new particle with pt = " << partSel.pt() <<  " iparticle: " << ipSel << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(part_accepted.begin(),part_accepted.end(),0) << endl;
                }
               else continue;
             }
@@ -468,29 +398,33 @@ public :
           //    continue;}
                 else continue;
               }
-            //  cout << candidate.pt()<<endl;
-        //    if (ijet ==134)  cout << candidate << endl;
-        //    if (candidate!=-1){
-            ipSelected = candidate;
-          //  if (ijet==134)  cout << ipSelected << endl;
-            fastjet::PseudoJet partSel = particlesNotUsed[ipSelected];
-            //  if (ijet==134)  cout << maxPtCurrent << endl;
-            maxPtCurrent+=partSel.pt();
-            initCondition.push_back(partSel.user_index());
+              if (candidate != -1){
+              ipSelected = candidate;
+              fastjet::PseudoJet partSel = particlesNotUsed[ipSelected];
+              maxPtCurrent+=partSel.pt();
+              initCondition.push_back(partSel.user_index());
+              // if (ijet==134 && ii==0)    std::cout << " Second way Added new particle with pt = " << partSel.pt() <<  " iparticle: " << ipSelected << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(part_accepted.begin(),part_accepted.end(),0) << endl;
+            }
+            if (std::accumulate(part_accepted.begin(),part_accepted.end(),0) == 1){
+              for (int i=0; i<particles.size(); i++){
+                if(part_accepted.at(i)!=0 && particles[i].pt()<maxpt_bkgd){
+            //      part_accepted.at(i) = 0;
+                  ipSelected = i;
+                  fastjet::PseudoJet partSel = particlesNotUsed[ipSelected];
+                  maxPtCurrent+=partSel.pt();
+                 initCondition.push_back(partSel.user_index());
+            //      if (ijet==134 && ii==0)    std::cout << " Second way Added new particle with pt = " << partSel.pt() <<  " iparticle: " << ipSelected << " to init condition. total pt now " << maxPtCurrent << "/" << maxPt  << " Particles left: " << std::accumulate(part_accepted.begin(),part_accepted.end(),0) << endl;
+                }
+              }
+            } //just in case we end up stucked
 
           }
-        } // Complete the list loop
-      //  if (ijet==134)  cout << "maxPt" << maxPtCurrent << endl;
-      //  if(maxPtCurrent<maxPt) {
-        //  pT_initialCondition = maxPtCurrent;
-        //  collInitCond.push_back(initCondition);
-      //  }
-
+        }
         if(maxPtCurrent>maxPt) {
          int initConditionSize_ = initCondition.size();
          double maxPtPrev = 0;
          std::vector<fastjet::PseudoJet> initCondParticles;
-          for(int ic = 0; ic<initConditionSize_-1; ++ic) { // all particles except the last one
+          for(int ic = 0; ic<initConditionSize_; ++ic) {
             initCondParticles.push_back(particles[initCondition[ic]]);
             maxPtPrev+=initCondParticles.at(ic).pt();
           }
@@ -498,112 +432,17 @@ public :
           double distance_two = sqrt((maxPt-maxPtPrev)*(maxPt-maxPtPrev));
 
           if (distance_one > distance_two) {
+        //    if(ijet==0) cout<<"yes"<< maxPtPrev<<endl;
             initCondition.pop_back();
 
-          } // At this point we have one candidate initial condition
-
-          //------------------------------------------------------------------
-          // Check the difference between the pT of the initial condition and the one coming from Marta's Minimal Subtraction method
-
-          int nparticles_initcond = initCondition.size();
-          double pT_mms = correlation_function(par0,par1,nparticles_initcond);
-          double pT_mms_error = error_correlation_function(error1, nparticles_initcond);
-          double pT_mms_upper = pT_mms + pT_mms_error;
-          double pT_mms_lower = pT_mms - pT_mms_error;
-
-          double pT_initCond = 0;
-          std::vector<fastjet::PseudoJet> initCondParticles_candidate;
-           for(int ic = 0; ic<nparticles_initcond; ++ic) {
-             initCondParticles_candidate.push_back(particles[initCondition[ic]]);
-             pT_initCond+=initCondParticles_candidate.at(ic).pt();
-           }
-
-        //   medianRho_array[ijet] = maxPt;
-        //   medianNconst_array[ijet] = nparticles_initcond;
-
-        //   mmsRho_array[ijet] = pT_mms;
-        //   mmsNconst_array[ijet] = nparticles_initcond;
-
-      //      cout << "pT initial Condition: " << maxPtCurrent << " pT_mms upper: " << pT_mms_upper << " pT_mms lower: " << pT_mms_lower << endl;
-
-           if(pT_initCond>pT_mms_upper){              // Remove particles until you reach pT_mms
-            pT_initialCondition = pT_initCond;
-
-             while (pT_initialCondition>pT_mms_upper && initCondition.size()>0){
-
-             pT_initialCondition = 0;
-             initCondition.pop_back(); // remove the last particle
-             int nparticles_new = initCondition.size();
-             std::vector<fastjet::PseudoJet> initCondParticles_new;
-
-             for(int ic = 0; ic<nparticles_new; ++ic) { // all particles except the last one
-             initCondParticles_new.push_back(particles[initCondition[ic]]);
-             pT_initialCondition+=initCondParticles_new.at(ic).pt();
-              } // Compute the new pT of the initial condition
-             }
-
-            }
-
-          else if(pT_initCond<pT_mms_lower && std::accumulate(part_accepted.begin(),part_accepted.end(),0)>0){              // Add particles until you reach pT_mms
-          pT_initialCondition = pT_initCond;
-
-            while (pT_initialCondition<pT_mms_lower){
-
-
-            int ipSelected = 0;
-            int candidate = 0;
-
-            for (int i=0; i<particles.size(); i++){
-
-              if(part_accepted.at(i)!=0 && particles[i].pt()<maxpt_bkgd)
-               { double candidate_pt = particles[i].pt();
-                 int candidate_ptbin = int(candidate_pt*nbins/ptmax)+1;
-                 double candidate_pt_mean = h_pt_constituents->GetBinContent(candidate_ptbin);
-                 double candidate_pt_error = h_pt_constituents->GetBinError(candidate_ptbin);
-                 double candidate_pt_prob = candidate_pt_mean + candidate_pt_error;
-
-                 double upper_limit_mean = h_pt_constituents_jet->GetBinContent(candidate_ptbin);
-                 double upper_limit_error = h_pt_constituents_jet->GetBinError(candidate_ptbin);
-                 double upper_limit = upper_limit_mean + upper_limit_error;
-
-                 if (upper_limit <= candidate_pt_prob){ //When the signal+background is below the background
-                    candidate=i;
-                    part_accepted.at(i) = 0;
-                    break;
-
-                 }
-               else{
-                 std::uniform_real_distribution<double> distPt(0., upper_limit);
-
-                 double random_prob = distPt(rndSeed);
-                if (candidate_pt_prob >= random_prob){
-                    candidate = i;
-                   part_accepted.at(i) = 0;
-                break;
-
-               }
-              else continue;
-            }
           }
-                else continue;
-              }
-
-              ipSelected = candidate;
-              fastjet::PseudoJet partSel = particlesNotUsed[ipSelected];
-              pT_initialCondition+=partSel.pt();
-
-              initCondition.push_back(partSel.user_index());
-            }
-
-          }
-
-           else pT_initialCondition = pT_initCond; // Just in case the value is in between
-
-          collInitCond.push_back(initCondition);
+          collInitCond.push_back(initCondition); //avoid putting in a initial condition for which not enough particles were available anymore to get to the required pT. Might be an issue for sparse events.
         //}
-      }
-           cout << "Final Pt: " << pT_initialCondition << " True Pt:" << trueRho << endl;
+        }
+      //  if (ijet==16) cout << collInitCond.size() << endl;
+      //  cout << "ijet: " << ijet << "MaxPt: " << maxPtCurrent << endl;
       }//initial conditions loop
+      //  cout << ijet << endl;
       //----------------------------------------------------------
       //Now we have the requested number of random initial condition
 
@@ -631,6 +470,7 @@ public :
        int chi2Index = idx[it];
        std::vector<int> indices = collInitCond[chi2Index];
         for(int ic = 0; ic<(int)indices.size(); ++ic) {
+      //    if (ijet==0)cout << particles[indices[ic]].user_index() << endl;
          share_idx[particles[indices[ic]].user_index()]++;
 
        }
@@ -647,7 +487,7 @@ public :
                 [&share_idx](size_t i1, size_t i2) {return share_idx[i1] > share_idx[i2];});
       //create final UE object
       //----------------------------------------------------------
-      double maxPtFinalUE = pT_initialCondition;
+      double maxPtFinalUE = rho_*jet.area();
       double curPtFinalUE = 0.;
       double prevPtFinalUE = 0.;
 
@@ -659,7 +499,7 @@ public :
       fastjet::PseudoJet part = particles[userIndex];
        if(curPtFinalUE<maxPtFinalUE) { //assign as bkgd particle
           curPtFinalUE+=part.pt();
-  //       if (ijet==0) std::cout << "Final UE: Added new particle with pt = " << part.phi() <<  " iparticle: " << userIndex << " to init condition. total pt now " << curPtFinalUE << "/" << maxPtFinalUE << endl;
+      //   if (ijet==134) std::cout << "Final UE: Added new particle with pt = " << part.pt() <<  " iparticle: " << userIndex << " to init condition. total pt now " << curPtFinalUE << "/" << maxPtFinalUE << endl;
           bkgd_particles.push_back(part);
         }
        else {
@@ -692,16 +532,6 @@ public :
       }
 
     }//jet loop
-
-  //  TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
-    //TGraph *trueRho_evolution = new TGraph(njets,trueNconst_array, trueRho_array);
-  //  TGraph *medianRho_evolution = new TGraph(njets,medianNconst_array, medianRho_array);
-  //  TGraph *mmsRho_evolution = new TGraph(njets,mmsNconst_array, mmsRho_array);
-  //  trueRho_evolution->Draw("AP");
-  //  medianRho_evolution->Draw("SAME");
-  //  mmsRho_evolution->Draw("SAME");
-  //  c1->SaveAs("methods_evolution_two.C");
-
     std::cout << "\n n subtracted jets: " << subtracted_jets.size() << std::endl;
     return subtracted_jets;
   }
