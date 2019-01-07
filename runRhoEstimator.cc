@@ -47,8 +47,8 @@ int main (int argc, char ** argv) {
 
   //Jet definition
   double R                   = 0.4;
-  double ghostRapMax         = 6.0;
-  double ghost_area          = 0.005;
+  double ghostRapMax         = 3.0;
+  double ghost_area          = 0.001;
   int    active_area_repeats = 1;
   fastjet::GhostedAreaSpec ghost_spec(ghostRapMax, active_area_repeats, ghost_area);
   fastjet::AreaDefinition area_def = fastjet::AreaDefinition(fastjet::active_area,ghost_spec);
@@ -82,12 +82,32 @@ int main (int argc, char ** argv) {
     std::vector<fastjet::PseudoJet> particlesBkg, particlesSig;
     SelectorIsHard().sift(particlesMerged, particlesSig, particlesBkg); // this sifts the full event into two vectors of PseudoJet, one for the hard event, one for the underlying event
 
+    // Create what we need for the background estimation
+    //----------------------------------------------------------
+    fastjet::JetDefinition jet_estimate_bkgd(fastjet::kt_algorithm, 0.4);
+    fastjet::AreaDefinition area_estimate_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
+    fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax-0.4) * (!fastjet::SelectorNHardest(2));
+
+    fastjet::ClusterSequenceArea csKt(particlesMerged, jet_estimate_bkgd, area_estimate_bkgd);
+    std::vector<fastjet::PseudoJet> bkgd_jets = fastjet::sorted_by_pt(selector(csKt.inclusive_jets()));
+
+    fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_estimate_bkgd, area_estimate_bkgd);
+    bkgd_estimator.set_particles(particlesMerged);
+    bkgd_estimator.set_jets(bkgd_jets);
+
+    double rhoMedian_ = 0;
+    double rhoSigma_ = 0;
+
+    // Compute the rho median for each event and its standard deviation
+
+    rhoMedian_ = bkgd_estimator.rho();
+    rhoSigma_ = bkgd_estimator.sigma();
 
 
     // run the clustering, extract the bkg jets
     fastjet::JetDefinition jet_def_bkgd(fastjet::antikt_algorithm, 0.4);
     fastjet::AreaDefinition area_def_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
-    fastjet::ClusterSequenceArea csBkg(particlesBkg, jet_def_bkgd, area_def_bkgd);
+    fastjet::ClusterSequenceArea csBkg(particlesMerged, jet_def_bkgd, area_def_bkgd);
     fastjet::Selector bkg_selector = fastjet::SelectorAbsRapMax(jetRapMax);
     jetCollection jetCollectionBkg(sorted_by_pt(bkg_selector(csBkg.inclusive_jets())));
 
@@ -95,16 +115,31 @@ int main (int argc, char ** argv) {
      rho_True.reserve(jetCollectionBkg.getJet().size());
      vector<double> nConstituents_True;
      nConstituents_True.reserve(jetCollectionBkg.getJet().size());
+     vector<double> rho_median;
+     rho_median.reserve(jetCollectionBkg.getJet().size());
 
     for(PseudoJet jet : jetCollectionBkg.getJet()) {
-       rho_True.push_back(jet.pt()/jet.area());
        std::vector<fastjet::PseudoJet> particles, ghosts;
        fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
-      nConstituents_True.push_back(particles.size());
-    }
-    jetCollectionBkg.addVector("rho_Truth", rho_True);
-    jetCollectionBkg.addVector("nconstituents_Truth", nConstituents_True);
-
+       if(particles.size()<1 || jet.pt()<1) continue;
+      // cout << jet.pt() << endl;
+       //rho_True.push_back(jet.pt());
+       double trueRho = 0;
+       int trueNconstituents=0;
+       for(fastjet::PseudoJet p : particles) {
+	      // Obtain the true rho for each patch by using only the background particles
+	      if (p.user_info<PU14>().vertex_number() == 1){
+          trueRho+=p.pt();
+          trueNconstituents++;
+	     }
+       }
+       rho_True.push_back(trueRho);
+       nConstituents_True.push_back(trueNconstituents);
+       rho_median.push_back(rhoMedian_*jet.area());
+     }
+    jetCollectionBkg.addVector("rho_True", rho_True);
+  //  jetCollectionBkg.addVector("nconstituents_Truth", nConstituents_True);
+    jetCollectionBkg.addVector("rho_median", rho_median);
     //---------------------------------------------------------------------------
     //   background Estimation with Rho Estimator
     //---------------------------------------------------------------------------
@@ -112,7 +147,6 @@ int main (int argc, char ** argv) {
     rhoEstimator rhoComputation(R,0.001,ghostRapMax,jetRapMax);
     rhoComputation.setInputParticles(particlesMerged);
     vector<double> rho_Estimate(rhoComputation.doEstimation());
-
     //---------------------------------------------------------------------------
     //   write tree
     //---------------------------------------------------------------------------
@@ -121,9 +155,10 @@ int main (int argc, char ** argv) {
     //Only vectors of the types 'jetCollection', and 'double', 'int', 'fastjet::PseudoJet' are supported
 
 
-    trw.addCollection("rhoTruth",           rho_True);
-    trw.addCollection("nconstituentsTruth",  nConstituents_True);
-    trw.addCollection("rhoEstimated",      rho_Estimate);
+    trw.addCollection("rho_True",           rho_True);
+    trw.addCollection("rho_median",          rho_median);
+  //  trw.addCollection("nconstituentsTruth",  nConstituents_True);
+    trw.addCollection("rho_Estimate",      rho_Estimate);
 
 
     trw.fillTree();
