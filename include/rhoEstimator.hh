@@ -13,6 +13,7 @@
 #include "TROOT.h"
 #include "TGraph.h"
 #include "TF1.h"
+#include "TCanvas.h"
 
 
 #include "fastjet/PseudoJet.hh"
@@ -28,8 +29,8 @@ using namespace fastjet;
 
 //---------------------------------------------------------------
 // Description
-// This class runs the jet-by-jet shared layer subtraction
-// Author: M. Verweij, Y. Mehtar-Tani
+// This class runs the jet-by-jet rho Estimator
+// Author: M. Verweij, Y. Mehtar-Tani, Alba Soto-Ontoso
 //---------------------------------------------------------------
 
 class rhoEstimator{
@@ -72,8 +73,8 @@ public :
   double getRhoSigma() const { return rhoSigma_; }
 
   // By calling this function we can get the value of the "real" pt given the linear assumption
-   double correlation_function(double slope, int n_constituents){
-   return slope*n_constituents;
+   double correlation_line(double slope, int n_constituents){
+   return slope*(n_constituents+1);
    };
 
   std::vector<double> doEstimation() {
@@ -84,34 +85,29 @@ public :
 
     // Create what we need for the background estimation
     //----------------------------------------------------------
-    fastjet::JetDefinition jet_def_bkgd(fastjet::kt_algorithm, jetRParam_);
-    fastjet::AreaDefinition area_def_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
-    fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4) * (!fastjet::SelectorNHardest(2));
+  //  fastjet::JetDefinition jet_def_bkgd(fastjet::kt_algorithm, jetRParam_);
+  //  fastjet::AreaDefinition area_def_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
+    //fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4) * (!fastjet::SelectorNHardest(2));
 
-    fastjet::ClusterSequenceArea csKt(fjInputs_, jet_def_bkgd, area_def_bkgd);
-    std::vector<fastjet::PseudoJet> bkgd_jets = fastjet::sorted_by_pt(selector(csKt.inclusive_jets()));
+  //  fastjet::ClusterSequenceArea csKt(fjInputs_, jet_def_bkgd, area_def_bkgd);
+  //  std::vector<fastjet::PseudoJet> bkgd_jets = fastjet::sorted_by_pt(selector(csKt.inclusive_jets()));
 
-    fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_def_bkgd, area_def_bkgd);
-    bkgd_estimator.set_particles(fjInputs_);
-    bkgd_estimator.set_jets(bkgd_jets);
+//    fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_def_bkgd, area_def_bkgd);
+//    bkgd_estimator.set_particles(fjInputs_);
+//    bkgd_estimator.set_jets(bkgd_jets);
 
-    double rhoMedian_ = 0;
-    double rhoSigma_ = 0;
+  //  double rhoMedian_ = 0;
+  //  double rhoSigma_ = 0;
 
     // Compute the rho median for each event and its standard deviation
 
-    rhoMedian_ = bkgd_estimator.rho();
-    rhoSigma_ = bkgd_estimator.sigma();
+  //  rhoMedian_ = bkgd_estimator.rho();
+  //  rhoSigma_ = bkgd_estimator.sigma();
 
     // Determination of the slope ("temperature") of the correlation line
-    //-----------------------------------------------------------
+    //----------------------------------------------------------
 
     double temperature = 1.2;
-
-  //  for(fastjet::PseudoJet& jet : bkgd_jets){
-
-
-  //  }
 
     // Do the anti-kt clustering
     //------------------------------------------------------------
@@ -138,6 +134,25 @@ public :
       fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
       if(particles.size()<1 || jet.pt()<1.) continue;
 
+      // Raw values
+    //  double truePatchPt = 0;
+    //  int truePatchN = 0;
+    //  for(fastjet::PseudoJet p : particles) {
+      // Obtain the true rho for each patch by using only the background particles
+    //   truePatchPt+=p.pt();
+    //   truePatchN++;
+    //   }
+
+      // Information to plot the trajectories
+
+        int tamano = particles.size();
+	      Double_t pt_progress[tamano];
+	      Double_t n_steps[tamano];
+
+        for (int j=0; j<tamano; j++){
+	          pt_progress[j]=0;
+	          n_steps[j] = 0;
+	        }
       // Order particles from soft to high pT
 
       std::vector<size_t> idx(particles.size());
@@ -162,22 +177,71 @@ public :
       double pTcurrent = 0; // to make sure it goes into the while loop
       int nparticles = -1;
 
-      double pTcorrelation = 1;
+      double pTcorrelation = 1000;
 
       std::fill(avail_part.begin(),avail_part.end(),1);
 
       while(pTcurrent<pTcorrelation && std::accumulate(avail_part.begin(),avail_part.end(),0)>0){
 
       nparticles++;
-      pTcorrelation = correlation_function(temperature, nparticles+1);
+      pTcorrelation = correlation_line(temperature, nparticles);
       fastjet::PseudoJet partSel = particles_pTOrdered[nparticles];
       bkgEstimate.push_back(partSel);
       pTcurrent+= partSel.pt();
       avail_part[nparticles] = 0;
-    //  if (ijet ==0) cout <<pTcurrent << endl;
+      pt_progress[nparticles] = pTcurrent;
+      n_steps[nparticles] = nparticles+1;
+
+    //  if (ijet == 9) cout << "Signal/Bkg particle: " << partSel.user_info<PU14>().vertex_number() << "nparticle: " << nparticles+1 << "pTcurrent: " << pTcurrent << endl;
       }
+
+      //Compute delta_rho as given by Eq. 4.36 in Yacine's notes
+      //----------------------------------------------------------
+  //    if(pTcurrent>pTcorrelation && std::accumulate(avail_part.begin(),avail_part.end(),0)>0)
+    //  {
+    //  double rho_star = pTcurrent;
+    //  double n_star = nparticles+1;
+    //  double rho_raw = truePatchPt;
+    //  double n_raw = truePatchN;
+    //  double deltaRho = temperature*pow(n_raw-n_star,2)*rho_star/((rho_raw-rho_star)*n_star);
+
+      //if(ijet==0) { cout << truePatchPt << endl;
+      //  cout << truePatchN << endl;
+      //  cout <<deltaRho <<endl;
+      //}
+    //  cout << deltaRho << endl;
+  //    pTcurrent-=deltaRho;
+      // }
+
+      //Check the effect of the last particle in a fancy way
+      //----------------------------------------------------------
+
+  //    if (pTcurrent>pTcorrelation && std::accumulate(avail_part.begin(),avail_part.end(),0)>3){
+
+        // Find the intersection between the two lines
+    //     double x1 = nparticles-1;
+  //       double x2= nparticles;
+  //       double y1 = pTcurrent;
+  //       double y2 = pTcurrent - particles_pTOrdered[nparticles].pt();
+  //       double slope_two = (y2-y1)/(x2-x1);
+  //       double intercept_two = y2 - slope_two*x2;
+  //       double x_intersection = intercept_two/(temperature-slope_two);
+  //       pTcurrent=correlation_line(temperature, int(x_intersection));
+      //   double distance_two = ;
+
+    //  }
       rho_estimate.push_back(pTcurrent);
     //  cout << "Estimate: " << pTcurrent << "Rho median: " << rhoMedian_*jet.area()<< endl;
+
+  //  if (ijet == 9) {
+    //     int nsteps = nparticles+1;
+    //     TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
+    //     TGraph *pt_evolution = new TGraph(nsteps,n_steps, pt_progress);
+    //     pt_evolution->Draw("AP");
+    //     TF1 *facorrelation_1 = new TF1("correlation_","1.2*x",0,nsteps);
+    //     facorrelation_1->Draw("SAME");
+    //     c1->SaveAs("Prueba_rho9.C");
+    //   }
     } // jets_loop
 
     return rho_estimate;
