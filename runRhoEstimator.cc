@@ -41,7 +41,7 @@ int main (int argc, char ** argv) {
   ClusterSequence::set_fastjet_banner_stream(NULL);
 
   //to write info to root tree
-  TFile *fout = new TFile("JetToyHIResultRhoEstimator_test.root","RECREATE");
+  TFile *fout = new TFile("JetToyHIResultRhoEstimator_noSignalv2.root","RECREATE");
   fout->cd();
   treeWriter trw("jetTree");
 
@@ -86,13 +86,13 @@ int main (int argc, char ** argv) {
     //----------------------------------------------------------
     fastjet::JetDefinition jet_estimate_bkgd(fastjet::kt_algorithm, 0.4);
     fastjet::AreaDefinition area_estimate_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
-    fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax-0.4) * (!fastjet::SelectorNHardest(2));
+    fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax-0.4);
 
-    fastjet::ClusterSequenceArea csKt(particlesMerged, jet_estimate_bkgd, area_estimate_bkgd);
+    fastjet::ClusterSequenceArea csKt(particlesBkg, jet_estimate_bkgd, area_estimate_bkgd);
     std::vector<fastjet::PseudoJet> bkgd_jets = fastjet::sorted_by_pt(selector(csKt.inclusive_jets()));
 
     fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_estimate_bkgd, area_estimate_bkgd);
-    bkgd_estimator.set_particles(particlesMerged);
+    bkgd_estimator.set_particles(particlesBkg);
     bkgd_estimator.set_jets(bkgd_jets);
 
     double rhoMedian_ = 0;
@@ -107,7 +107,7 @@ int main (int argc, char ** argv) {
     // run the clustering, extract the bkg jets
     fastjet::JetDefinition jet_def_bkgd(fastjet::antikt_algorithm, 0.4);
     fastjet::AreaDefinition area_def_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
-    fastjet::ClusterSequenceArea csBkg(particlesMerged, jet_def_bkgd, area_def_bkgd);
+    fastjet::ClusterSequenceArea csBkg(particlesBkg, jet_def_bkgd, area_def_bkgd);
     fastjet::Selector bkg_selector = fastjet::SelectorAbsRapMax(jetRapMax);
     jetCollection jetCollectionBkg(sorted_by_pt(bkg_selector(csBkg.inclusive_jets())));
 
@@ -117,35 +117,47 @@ int main (int argc, char ** argv) {
      nConstituents_True.reserve(jetCollectionBkg.getJet().size());
      vector<double> rho_median;
      rho_median.reserve(jetCollectionBkg.getJet().size());
+     vector<double> pT_patch;
+     pT_patch.reserve(jetCollectionBkg.getJet().size());
+     vector<double> rho_line;
+     rho_line.reserve(jetCollectionBkg.getJet().size());
 
     for(PseudoJet jet : jetCollectionBkg.getJet()) {
        std::vector<fastjet::PseudoJet> particles, ghosts;
        fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
        if(particles.size()<1 || jet.pt()<1) continue;
-      // cout << jet.pt() << endl;
-       //rho_True.push_back(jet.pt());
        double trueRho = 0;
+       double truePatchPt = 0;
        int trueNconstituents=0;
        for(fastjet::PseudoJet p : particles) {
 	      // Obtain the true rho for each patch by using only the background particles
-	      if (p.user_info<PU14>().vertex_number() == 1){
+	    //  if (p.user_info<PU14>().vertex_number() == 1){
           trueRho+=p.pt();
           trueNconstituents++;
-	     }
+	     //}
+       truePatchPt+=p.pt();
        }
+    //   cout << trueSignal << endl;
        rho_True.push_back(trueRho);
        nConstituents_True.push_back(trueNconstituents);
+    //   if (trueRho<rhoMedian_*jet.area()){
+      // rho_median.push_back(trueRho);
+       //}
+      // else
        rho_median.push_back(rhoMedian_*jet.area());
+       pT_patch.push_back(truePatchPt);
+       rho_line.push_back(1.2*trueNconstituents);
      }
     jetCollectionBkg.addVector("rho_True", rho_True);
-  //  jetCollectionBkg.addVector("nconstituents_Truth", nConstituents_True);
+    jetCollectionBkg.addVector("nConstituents_True", nConstituents_True);
     jetCollectionBkg.addVector("rho_median", rho_median);
+    jetCollectionBkg.addVector("pT_patch", pT_patch);
+    jetCollectionBkg.addVector("rho_line", rho_line);
     //---------------------------------------------------------------------------
     //   background Estimation with Rho Estimator
     //---------------------------------------------------------------------------
-
     rhoEstimator rhoComputation(R,0.001,ghostRapMax,jetRapMax);
-    rhoComputation.setInputParticles(particlesMerged);
+    rhoComputation.setInputParticles(particlesBkg);
     vector<double> rho_Estimate(rhoComputation.doEstimation());
     //---------------------------------------------------------------------------
     //   write tree
@@ -156,9 +168,12 @@ int main (int argc, char ** argv) {
 
 
     trw.addCollection("rho_True",           rho_True);
+    trw.addCollection("pT_patch",           pT_patch);
     trw.addCollection("rho_median",          rho_median);
-  //  trw.addCollection("nconstituentsTruth",  nConstituents_True);
+    trw.addCollection("nConstituents_True",  nConstituents_True);
     trw.addCollection("rho_Estimate",      rho_Estimate);
+    trw.addCollection("rho_line",      rho_line);
+
 
 
     trw.fillTree();
@@ -173,12 +188,12 @@ int main (int argc, char ** argv) {
 
  TTree *trOut = trw.getTree();
  trOut->Write();
- trOut->Scan();
+// trOut->Scan();
 
  fout->Write();
  fout->Close();
 
-  std::cout << "Check JetToyHIResultRhoEstimator_test.root for results" << std::endl;
+  std::cout << "Check JetToyHIResultRhoEstimator_noSignalv2.root for results" << std::endl;
 
   double time_in_seconds = std::chrono::duration_cast<std::chrono::milliseconds>
     (std::chrono::steady_clock::now() - start_time).count() / 1000.0;
