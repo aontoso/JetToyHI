@@ -189,9 +189,9 @@ public :
     //   pTcurrent = truePatchPt;
 
 //      }
-
+      double pTcut = 4; // new trial
     //  else {
-      while(pTcurrent<rhoMedian_*jet.area() && std::accumulate(avail_part.begin(),avail_part.end(),0)>0){
+      while(pTcurrent<rhoMedian_*jet.area() && std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && particles_pTOrdered[nparticles+1].pt()<pTcut){
 
       nparticles++;
       pTcorrelation = correlation_line(temperature, nparticles);
@@ -272,7 +272,7 @@ public :
     // cout << deltaRho << endl;
       pTcurrent-=deltaRho;
 
-  //   }
+     }
   //
     if (std::accumulate(avail_part.begin(),avail_part.end(),0)>0){
     double minus_slope_perp = 1/temperature;
