@@ -85,24 +85,25 @@ public :
 
     // Create what we need for the background estimation
     //----------------------------------------------------------
-  //  fastjet::JetDefinition jet_def_bkgd(fastjet::kt_algorithm, jetRParam_);
-  //  fastjet::AreaDefinition area_def_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
-    //fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4) * (!fastjet::SelectorNHardest(2));
+    fastjet::JetDefinition jet_def_bkgd(fastjet::kt_algorithm, jetRParam_);
+    fastjet::AreaDefinition area_def_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
+    fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4)* (!fastjet::SelectorNHardest(2));
+  // fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4);
 
-  //  fastjet::ClusterSequenceArea csKt(fjInputs_, jet_def_bkgd, area_def_bkgd);
-  //  std::vector<fastjet::PseudoJet> bkgd_jets = fastjet::sorted_by_pt(selector(csKt.inclusive_jets()));
+    fastjet::ClusterSequenceArea csKt(fjInputs_, jet_def_bkgd, area_def_bkgd);
+    std::vector<fastjet::PseudoJet> bkgd_jets = fastjet::sorted_by_pt(selector(csKt.inclusive_jets()));
 
-//    fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_def_bkgd, area_def_bkgd);
-//    bkgd_estimator.set_particles(fjInputs_);
-//    bkgd_estimator.set_jets(bkgd_jets);
+    fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_def_bkgd, area_def_bkgd);
+    bkgd_estimator.set_particles(fjInputs_);
+    bkgd_estimator.set_jets(bkgd_jets);
 
-  //  double rhoMedian_ = 0;
-  //  double rhoSigma_ = 0;
+    double rhoMedian_ = 0;
+    double rhoSigma_ = 0;
 
     // Compute the rho median for each event and its standard deviation
 
-  //  rhoMedian_ = bkgd_estimator.rho();
-  //  rhoSigma_ = bkgd_estimator.sigma();
+    rhoMedian_ = bkgd_estimator.rho();
+    rhoSigma_ = bkgd_estimator.sigma();
 
     // Determination of the slope ("temperature") of the correlation line
     //----------------------------------------------------------
@@ -135,13 +136,16 @@ public :
       if(particles.size()<1 || jet.pt()<1.) continue;
 
       // Raw values
-    //  double truePatchPt = 0;
-    //  int truePatchN = 0;
-    //  for(fastjet::PseudoJet p : particles) {
+      double truePatchPt = 0;
+      int truePatchN = 0;
+      for(fastjet::PseudoJet p : particles) {
       // Obtain the true rho for each patch by using only the background particles
-    //   truePatchPt+=p.pt();
-    //   truePatchN++;
-    //   }
+       truePatchPt+=p.pt();
+       truePatchN++;
+       }
+    //   if (ijet==0)
+
+  //  if (truePatchPt-jet.pt()>5) cout << "Jet.pt(): " << jet.pt() << " Patch Pt: " << truePatchPt-jet.pt() << endl;
 
       // Information to plot the trajectories
 
@@ -177,11 +181,17 @@ public :
       double pTcurrent = 0; // to make sure it goes into the while loop
       int nparticles = -1;
 
-      double pTcorrelation = 1000;
+      double pTcorrelation = 1;
 
       std::fill(avail_part.begin(),avail_part.end(),1);
 
-      while(pTcurrent<pTcorrelation && std::accumulate(avail_part.begin(),avail_part.end(),0)>0){
+    //  if (correlation_line(temperature, truePatchN) > truePatchPt){
+    //   pTcurrent = truePatchPt;
+
+//      }
+
+    //  else {
+      while(pTcurrent<rhoMedian_*jet.area() && std::accumulate(avail_part.begin(),avail_part.end(),0)>0){
 
       nparticles++;
       pTcorrelation = correlation_line(temperature, nparticles);
@@ -194,10 +204,24 @@ public :
 
     //  if (ijet == 9) cout << "Signal/Bkg particle: " << partSel.user_info<PU14>().vertex_number() << "nparticle: " << nparticles+1 << "pTcurrent: " << pTcurrent << endl;
       }
+    //  pTcurrent = correlation_line(temperature,nparticles);
+
+    //}
+
+    //Compute the shortest distance to the correlation line
+    //----------------------------------------------------------
+
+    //  double minus_slope_perp = 1/temperature;
+    //  double intercept_perp = pTcurrent + (nparticles+1)*minus_slope_perp;
+    //  int n_shortest = int(intercept_perp/(temperature+minus_slope_perp));
+    //  double pTshortest = correlation_line(temperature, n_shortest);
+    //  pTcurrent = pTshortest;
+  //  }
+
 
       //Compute delta_rho as given by Eq. 4.36 in Yacine's notes
       //----------------------------------------------------------
-  //    if(pTcurrent>pTcorrelation && std::accumulate(avail_part.begin(),avail_part.end(),0)>0)
+  //   if(pTcurrent>pTcorrelation && std::accumulate(avail_part.begin(),avail_part.end(),0)>0)
     //  {
     //  double rho_star = pTcurrent;
     //  double n_star = nparticles+1;
@@ -212,6 +236,54 @@ public :
     //  cout << deltaRho << endl;
   //    pTcurrent-=deltaRho;
       // }
+
+      //Compute delta_rho as given by Eq. 2.6 in Yacine's notes
+      //----------------------------------------------------------
+  //    if(pTcurrent>pTcorrelation && std::accumulate(avail_part.begin(),avail_part.end(),0)>0)
+    //     {
+  //    double rho_star = particles_pTOrdered[nparticles].pt();
+  //    double n_star = nparticles+1;
+    //  double n_raw = truePatchN;
+  //    double delta = n_star*(rho_star+temperature)*exp(-rho_star/temperature);
+      //if(ijet==1) cout << n_star << endl;
+  //      pTcurrent-=delta;
+  //  }
+
+  //  if()
+
+  //  if(pTcurrent<pTcorrelation && std::accumulate(avail_part.begin(),avail_part.end(),0)>0)
+  //     {
+  //  double rho_star = particles_pTOrdered[nparticles].pt();
+  //  double n_star = nparticles+1;
+  //  double n_raw = truePatchN;
+  //  double delta = n_star*exp(-rho_star/temperature);
+    //if(ijet==1) cout << n_star << endl;
+  //    pTcurrent+=delta;
+  //}
+
+  //Compute delta_rho as given by Eq. 2.14 in Yacine's notes
+  //----------------------------------------------------------
+     if(pTcurrent>pTcorrelation && std::accumulate(avail_part.begin(),avail_part.end(),0)>0)
+     {
+
+      double rho_star = particles_pTOrdered[nparticles].pt();
+      double n_star = nparticles+1;
+      double deltaRho = n_star*exp(-2*rho_star/temperature)*(pow(temperature,2)+2*rho_star*temperature+2*pow(rho_star,2)*temperature);
+    // cout << deltaRho << endl;
+      pTcurrent-=deltaRho;
+
+  //   }
+  //
+    if (std::accumulate(avail_part.begin(),avail_part.end(),0)>0){
+    double minus_slope_perp = 1/temperature;
+    double intercept_perp = pTcurrent + (nparticles+1)*minus_slope_perp;
+    int n_shortest = int(intercept_perp/(temperature+minus_slope_perp));
+    double pTshortest = correlation_line(temperature, n_shortest);
+    pTcurrent = pTshortest;
+    }
+
+  //   if (pTcurrent > truePatchPt) pTcurrent = truePatchPt;
+ //  }
 
       //Check the effect of the last particle in a fancy way
       //----------------------------------------------------------
