@@ -226,7 +226,7 @@ public :
       pt_progress[nparticles] = pTcurrent;
       n_steps[nparticles] = nparticles+1;
 
-    //  if (ijet == 9) cout << "Signal/Bkg particle: " << partSel.user_info<PU14>().vertex_number() << "nparticle: " << nparticles+1 << "pTcurrent: " << pTcurrent << endl;
+      if (ijet == 0) cout << "Signal/Bkg particle: " << partSel.user_info<PU14>().vertex_number() << "nparticle: " << nparticles+1 << "pTcurrent: " << pTcurrent << endl;
       }
     //  pTcurrent = correlation_line(temperature,nparticles);
 
@@ -284,7 +284,8 @@ public :
     //if(ijet==1) cout << n_star << endl;
   //    pTcurrent+=delta;
   //}
-
+    // if (ijet==0) cout << pTcurrent << endl;
+     if (ijet==0) cout << particles_pTOrdered[nparticles+1].pt() << endl;
   //Compute delta_rho as given by Eq. 2.14 in Yacine's notes
   //----------------------------------------------------------
      if(pTcurrent>pTcorrelation && std::accumulate(avail_part.begin(),avail_part.end(),0)>0)
@@ -296,14 +297,18 @@ public :
   //    cout << deltaRho << endl;
       pTcurrent-=deltaRho;
 
+      if (ijet==0) cout << "eo" << pTcurrent << endl;
+
      }
   //
     if (std::accumulate(avail_part.begin(),avail_part.end(),0)>0){
-    double minus_slope_perp = 1/temperature;
-    double intercept_perp = pTcurrent + (nparticles+1)*minus_slope_perp;
-    int n_shortest = int(intercept_perp/(temperature+minus_slope_perp));
-    double pTshortest = correlation_line(temperature, n_shortest);
-    pTcurrent = pTshortest;
+      double minus_slope_perp = 1/temperature;
+      double intercept_perp = pTcurrent + (nparticles+1)*minus_slope_perp;
+      int n_shortest = int(intercept_perp/(temperature+minus_slope_perp));
+      double pTshortest = correlation_line(temperature, n_shortest);
+     pTcurrent = pTshortest;
+     if (ijet==0) cout << n_shortest << endl;
+
     }
 
   //   if (pTcurrent > truePatchPt) pTcurrent = truePatchPt;
@@ -329,15 +334,24 @@ public :
       rho_estimate.push_back(pTcurrent);
     //  cout << "Estimate: " << pTcurrent << "Rho median: " << rhoMedian_*jet.area()<< endl;
 
-  //  if (ijet == 9) {
-    //     int nsteps = nparticles+1;
-    //     TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
-    //     TGraph *pt_evolution = new TGraph(nsteps,n_steps, pt_progress);
-    //     pt_evolution->Draw("AP");
-    //     TF1 *facorrelation_1 = new TF1("correlation_","1.2*x",0,nsteps);
-    //     facorrelation_1->Draw("SAME");
-    //     c1->SaveAs("Prueba_rho9.C");
-    //   }
+      if (ijet == 0) {for(int i = 102; i<tamano; i++){
+       fastjet::PseudoJet partSel = particles_pTOrdered[i];
+      cout << "Signal/Bkg particle: " << partSel.user_info<PU14>().vertex_number() << i << "pTcurrent: " << partSel.pt() << endl;
+
+      }
+    }
+
+
+
+    if (ijet == 0) {
+         int nsteps = nparticles+1;
+         TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
+         TGraph *pt_evolution = new TGraph(nsteps,n_steps, pt_progress);
+         pt_evolution->Draw("AP");
+         TF1 *facorrelation_1 = new TF1("correlation_","1.2*x",0,200);
+         facorrelation_1->Draw("SAME");
+         c1->SaveAs("Prueba_rho00.C");
+       }
     } // jets_loop
 
     return rho_estimate;
