@@ -105,6 +105,28 @@ public :
     rhoMedian_ = bkgd_estimator.rho();
     rhoSigma_ = bkgd_estimator.sigma();
 
+    // Determine the ptCut a la Soft Killer
+    //-------------------------------------------------------------
+
+    std::vector<double> ptConst_bkgd;
+
+    for(fastjet::PseudoJet& jet : bkgd_jets) {
+        double maxpt_bkgd = 0;
+        std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
+        fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
+     // Find the maximum-pt of patch in the background
+       for(fastjet::PseudoJet p : particles) {
+            double momentum = p.pt();
+            if (momentum > maxpt_bkgd) maxpt_bkgd = momentum;
+          }
+         ptConst_bkgd.push_back(maxpt_bkgd);
+       } // bkgd_jets loop
+
+       std::nth_element(ptConst_bkgd.begin(), ptConst_bkgd.begin() + ptConst_bkgd.size()/2, ptConst_bkgd.end());
+       double pTsoftKiller = ptConst_bkgd[ptConst_bkgd.size()/2];
+
+    //   cout << pTsoftKiller << endl;
+
     // Determination of the slope ("temperature") of the correlation line
     //----------------------------------------------------------
 
@@ -189,9 +211,11 @@ public :
     //   pTcurrent = truePatchPt;
 
 //      }
-      double pTcut = 4; // new trial
+      double pTcut = pTsoftKiller; // new trial
     //  else {
       while(pTcurrent<rhoMedian_*jet.area() && std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && particles_pTOrdered[nparticles+1].pt()<pTcut){
+
+  //   while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && particles_pTOrdered[nparticles+1].pt()<pTcut){
 
       nparticles++;
       pTcorrelation = correlation_line(temperature, nparticles);
@@ -269,7 +293,7 @@ public :
       double rho_star = particles_pTOrdered[nparticles].pt();
       double n_star = nparticles+1;
       double deltaRho = n_star*exp(-2*rho_star/temperature)*(pow(temperature,2)+2*rho_star*temperature+2*pow(rho_star,2)*temperature);
-    // cout << deltaRho << endl;
+  //    cout << deltaRho << endl;
       pTcurrent-=deltaRho;
 
      }
