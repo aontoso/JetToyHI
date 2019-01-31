@@ -110,7 +110,7 @@ public :
     double rhoMedian_ = 0;
     double rhoCut_ = 0;
     double rhoGammaCut_ = 0;
-     double lambda = 0.5;
+    double lambda = 1;
     // Compute the rho median for each event and its standard deviation
 
      rhoMedian_ = bkgd_estimator.rho();
@@ -147,13 +147,13 @@ public :
        std::nth_element(ptConst_bkgd.begin(), ptConst_bkgd.begin() + ptConst_bkgd.size()/2, ptConst_bkgd.end());
        double pTsoftKiller = ptConst_bkgd[ptConst_bkgd.size()/2];
       // cout << pTsoftKiller << endl;
-        double alpha = 1; // alpha is between (0,1). Controls how much we want to be like soft Killer. For alpha = 0 we recover the area-median result. For alpha = 1, soft Killer.
+        double alpha = 1.; // alpha is between (0,1). Controls how much we want to be like soft Killer. For alpha = 0 we recover the area-median result. For alpha = 1, soft Killer.
        double pTModifiedsoftKiller = alpha * pTsoftKiller;
 
        std::nth_element(gammaConst_bkgd.begin(), gammaConst_bkgd.begin() + gammaConst_bkgd.size()/2, gammaConst_bkgd.end());
 
        double gammaCut = alpha*gammaConst_bkgd[gammaConst_bkgd.size()/2];
-
+    //   double gammaCut = 2.4;
       //  cout << gammaCut << endl;
     //   double pTModifiedsoftKiller = 2.4;
        // Determine the rho(cut): rho computed after pT < pTcut have been removed
@@ -247,6 +247,8 @@ public :
       if(particles.size()<1 || jet.pt()<1.) continue;
 
       // Raw values
+      std::vector<double> particles_deltaR;
+      std::vector<double> particles_gamma;
       double truePatchPt = 0;
       int truePatchN = 0;
       double pTsignal = 0;
@@ -255,7 +257,9 @@ public :
       // Obtain the true rho for each patch by using only the background particles
        truePatchPt+=p.pt();
        truePatchN++;
-
+       double radial = jet.delta_R(p);
+       if (radial == 0) radial = 1e-8;
+       particles_deltaR.push_back(radial);
        }
 
       // Order particles from soft to high pT
@@ -276,8 +280,8 @@ public :
       iota(idx2.begin(), idx2.end(), 0);
 
       std::sort(idx2.begin(), idx2.end(),
-                [&particles, &jet](size_t i1, size_t i2, double lambda = 0.5) {
-                return particles[i1].pt()/pow(jet.delta_R(particles[i1]),lambda) < particles[i2].pt()/pow(jet.delta_R(particles[i2]),lambda);});
+                [&particles, &particles_deltaR](size_t i1, size_t i2, double lambda = 0.5) {
+                return particles[i1].pt()/pow(particles_deltaR[i1],lambda) < particles[i2].pt()/pow(particles_deltaR[i2],lambda);});
 
       std::vector<fastjet::PseudoJet> particles_gammaOrdered;
       for (int i = 0; i<particles.size(); i++){
@@ -294,6 +298,11 @@ public :
          particles_gammaOrdered[i].set_user_index(i);
        }
 
+       for(int i = 0; i<(int)particles_gammaOrdered.size(); ++i) {
+         double gamma_value = particles_gammaOrdered[i].pt()/pow(jet.delta_R(particles_gammaOrdered[i]),lambda);
+         particles_gamma.push_back(gamma_value);
+       }
+
     //   cout << particles_gammaOrdered[0] << endl;
 
       std::vector<fastjet::PseudoJet> bkgEstimate;  //list of particles until we reach the correlation line
@@ -305,8 +314,7 @@ public :
       std::fill(avail_part.begin(),avail_part.end(),1);
 
     //  while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && particles_pTOrdered[nparticles+1].pt()<pTModifiedsoftKiller){
-
-      while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && particles_gammaOrdered[nparticles+1].pt()/pow(jet.delta_R(particles_gammaOrdered[nparticles+1]),lambda)<gammaCut){
+      while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && particles_gamma[nparticles+1]<gammaCut){
 
       nparticles++;
       fastjet::PseudoJet partSel = particles_gammaOrdered[nparticles];
@@ -325,7 +333,7 @@ public :
 
     //    double pT_cut_corrected = nparticles*temperature*(1-(1+2*pTModifiedsoftKiller/temperature+2*pow(pTModifiedsoftKiller,2)/pow(temperature,2))*exp(-2*pTModifiedsoftKiller/temperature));
       //  if (pTcurrent > pT_cut_corrected) pTcurrent = pT_cut_corrected;
-        double pT_estimate = pTcurrent+rhoCut_*jet.area();
+        double pT_estimate = pTcurrent+rhoGammaCut_*jet.area();
        if (pT_estimate > truePatchPt) pT_estimate = truePatchPt;
 
       rho_estimate.push_back(pT_estimate);
