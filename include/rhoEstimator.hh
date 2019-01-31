@@ -125,7 +125,7 @@ public :
 
     for(fastjet::PseudoJet& jet : bkg_jets) {
         double maxpt_bkgd = 0;
-        double maxgamma_bkgd = 0;
+        double maxgamma_bkgd = 1000;
         if(jet.is_pure_ghost()) continue;
         std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
         fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
@@ -133,41 +133,25 @@ public :
      // Find the maximum-pt of patch in the background
        for(fastjet::PseudoJet p : particles) {
             double deltaR = jet.delta_R(p);
-            if (deltaR == 0) deltaR=1e-8;
             double momentum = p.pt();
             if (momentum > maxpt_bkgd) maxpt_bkgd = momentum;
-            double gamma = momentum/pow(deltaR,lambda);
-            if (gamma > maxgamma_bkgd) maxgamma_bkgd = gamma;
+            double gamma = pow(deltaR,lambda)/momentum;
+            if (gamma < maxgamma_bkgd) maxgamma_bkgd = gamma;
           }
        ptConst_bkgd.push_back(maxpt_bkgd);
        gammaConst_bkgd.push_back(maxgamma_bkgd);
-      //    cout << maxpt_bkgd << endl;
        } // bkgd_jets loop
-
        std::nth_element(ptConst_bkgd.begin(), ptConst_bkgd.begin() + ptConst_bkgd.size()/2, ptConst_bkgd.end());
        double pTsoftKiller = ptConst_bkgd[ptConst_bkgd.size()/2];
       // cout << pTsoftKiller << endl;
-        double alpha = 1.; // alpha is between (0,1). Controls how much we want to be like soft Killer. For alpha = 0 we recover the area-median result. For alpha = 1, soft Killer.
+        double alpha = 1; // alpha is between (0,1). Controls how much we want to be like soft Killer. For alpha = 0 we recover the area-median result. For alpha = 1, soft Killer.
        double pTModifiedsoftKiller = alpha * pTsoftKiller;
 
        std::nth_element(gammaConst_bkgd.begin(), gammaConst_bkgd.begin() + gammaConst_bkgd.size()/2, gammaConst_bkgd.end());
 
        double gammaCut = alpha*gammaConst_bkgd[gammaConst_bkgd.size()/2];
-    //   double gammaCut = 2.4;
-      //  cout << gammaCut << endl;
-    //   double pTModifiedsoftKiller = 2.4;
        // Determine the rho(cut): rho computed after pT < pTcut have been removed
        //-------------------------------------------------------------
-
-    //   skSubtractor skSub(0.4, 3.0);
-    //   skSub.setInputParticles(fjInputs_);
-    //   std::vector<fastjet::PseudoJet> skEvent = skSub.doSubtraction();
-  //     std::vector<double> skPtThreshold;
-  //     skPtThreshold.push_back(skSub.getPtThreshold()); //SoftKiller pT ///threshold
-
-      // cout << skPtThreshold.at(0) << endl;
-
-  //     double pTModifiedsoftKiller = skPtThreshold.at(0);
 
        std::vector<double> rhoMedian_bkgd;
        std::vector<double> rhoCut_bkgd;
@@ -188,10 +172,9 @@ public :
                  rho_cut+=momentum;
                  }
                  double deltaR = jet.delta_R(p);
-                 if (deltaR == 0) deltaR=1e-8;
-                 double gamma = momentum/pow(deltaR,lambda);
+                 double gamma = pow(deltaR,lambda)/momentum;
 
-                 if (gamma > gammaCut){
+                 if (gamma < gammaCut){
                   rho_gamma_cut+=momentum;
                  }
                }
@@ -213,7 +196,8 @@ public :
 
            rhoGammaCut_ = rhoGammaCut_bkgd[rhoGammaCut_bkgd.size()/2];
 
-
+                // cout << rhoGammaCut_ << endl;
+                // cout << rhoMedian_ << endl;
     //   cout << pTsoftKiller << endl;
 
     // Determination of the slope ("temperature") of the correlation line
@@ -247,8 +231,6 @@ public :
       if(particles.size()<1 || jet.pt()<1.) continue;
 
       // Raw values
-      std::vector<double> particles_deltaR;
-      std::vector<double> particles_gamma;
       double truePatchPt = 0;
       int truePatchN = 0;
       double pTsignal = 0;
@@ -257,9 +239,6 @@ public :
       // Obtain the true rho for each patch by using only the background particles
        truePatchPt+=p.pt();
        truePatchN++;
-       double radial = jet.delta_R(p);
-       if (radial == 0) radial = 1e-8;
-       particles_deltaR.push_back(radial);
        }
 
       // Order particles from soft to high pT
@@ -280,8 +259,8 @@ public :
       iota(idx2.begin(), idx2.end(), 0);
 
       std::sort(idx2.begin(), idx2.end(),
-                [&particles, &particles_deltaR](size_t i1, size_t i2, double lambda = 0.5) {
-                return particles[i1].pt()/pow(particles_deltaR[i1],lambda) < particles[i2].pt()/pow(particles_deltaR[i2],lambda);});
+                [&particles, &jet](size_t i1, size_t i2, double lambda = 1) {
+                return pow(jet.delta_R(particles[i1]),lambda)/particles[i1].pt() > pow(jet.delta_R(particles[i2]),lambda)/particles[i2].pt();});
 
       std::vector<fastjet::PseudoJet> particles_gammaOrdered;
       for (int i = 0; i<particles.size(); i++){
@@ -298,12 +277,7 @@ public :
          particles_gammaOrdered[i].set_user_index(i);
        }
 
-       for(int i = 0; i<(int)particles_gammaOrdered.size(); ++i) {
-         double gamma_value = particles_gammaOrdered[i].pt()/pow(jet.delta_R(particles_gammaOrdered[i]),lambda);
-         particles_gamma.push_back(gamma_value);
-       }
-
-    //   cout << particles_gammaOrdered[0] << endl;
+  //    cout << pow(jet.delta_R(particles_gammaOrdered[0]),lambda)/particles_gammaOrdered[0].pt() << endl;
 
       std::vector<fastjet::PseudoJet> bkgEstimate;  //list of particles until we reach the correlation line
       std::vector<int> avail_part(particles_pTOrdered.size()); // list of particles still available
@@ -314,7 +288,7 @@ public :
       std::fill(avail_part.begin(),avail_part.end(),1);
 
     //  while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && particles_pTOrdered[nparticles+1].pt()<pTModifiedsoftKiller){
-      while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && particles_gamma[nparticles+1]<gammaCut){
+      while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && pow(jet.delta_R(particles_gammaOrdered[nparticles+1]),lambda)/particles_gammaOrdered[nparticles+1].pt()>gammaCut){
 
       nparticles++;
       fastjet::PseudoJet partSel = particles_gammaOrdered[nparticles];
