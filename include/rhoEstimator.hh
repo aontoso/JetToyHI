@@ -92,6 +92,7 @@ public :
    fastjet::JetDefinition jet_estimate_bkgd(fastjet::kt_algorithm, 0.4);
    fastjet::AreaDefinition area_estimate_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
    fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4)*(!fastjet::SelectorNHardest(2));
+  // fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4);
 
    fastjet::ClusterSequenceArea csKt(fjInputs_, jet_estimate_bkgd, area_estimate_bkgd);
    std::vector<fastjet::PseudoJet> bkg_jets = fastjet::sorted_by_pt(selector(csKt.inclusive_jets()));
@@ -119,7 +120,7 @@ public :
     //-------------------------------------------------------------
 
     std::vector<double> ptConst_bkgd;
-    std::vector<double> gammaConst_bkgd;
+
 
     for(fastjet::PseudoJet& jet : bkg_jets) {
         double maxpt_bkgd = 0;
@@ -137,10 +138,12 @@ public :
        std::nth_element(ptConst_bkgd.begin(), ptConst_bkgd.begin() + ptConst_bkgd.size()/2, ptConst_bkgd.end());
        double pTsoftKiller = ptConst_bkgd[ptConst_bkgd.size()/2];
       // cout << pTsoftKiller << endl;
-        double alpha = 0.5; // alpha is between (0,1). Controls how much we want to be like soft Killer. For alpha = 0 we recover the area-median result. For alpha = 1, soft Killer.
+      //  double alpha = 0.; // alpha is between (0,1). Controls how much we want to be like soft Killer. For alpha = 0 we recover the area-median result. For alpha = 1, soft Killer.
       // double pTModifiedsoftKiller = alpha * pTsoftKiller;
 
        double pTModifiedsoftKiller = 2.4;
+       double deltaR_min = 0.1;
+      // double deltaR_max = 0.4;
        // Determine the rho(cut): rho computed after pT < pTcut have been removed
        //-------------------------------------------------------------
 
@@ -157,8 +160,9 @@ public :
             for(fastjet::PseudoJet p : particles) {
                  double momentum = p.pt();
                  rho_const+=momentum;
-
-                 if (momentum > pTModifiedsoftKiller){
+                 double deltaR = jet.delta_R(p);
+              //   if (deltaR > 0.4) cout << "YES: " << deltaR << endl;
+                 if (momentum > pTModifiedsoftKiller || deltaR < deltaR_min){
                  rho_cut+=momentum;
                  }
 
@@ -210,13 +214,22 @@ public :
 
       // Raw values
       double truePatchPt = 0;
+      double truePatchPx = 0;
+      double truePatchPy = 0;
       int truePatchN = 0;
     //  double trueRho = 0;
       for(fastjet::PseudoJet p : particles) {
       // Obtain the true rho for each patch by using only the background particles
-       truePatchPt+=p.pt();
+       truePatchPx+=p.px();
+       truePatchPy+=p.py();
+      // truePatchPt+=p.pt();
        truePatchN++;
        }
+       truePatchPt = sqrt(pow(truePatchPx,2)+pow(truePatchPy,2));
+    //if (ijet==0){cout << "Vectorial: "<< sqrt(pow(truePatchPx,2)+pow(truePatchPy,2)) << endl;
+    //   cout << "Scalar: " << truePatchPt << endl;
+    //   cout << "True:" << jet.pt() << endl;
+     //}
 
       // Order particles from soft to high pT
 
@@ -243,44 +256,56 @@ public :
 
       double pTcurrent = 0; // to make sure it goes into the while loop
       int nparticles = -1;
+      double pTsignal = 0;
+      double pXcurrent = 0;
+      double pYcurrent=0;
+      double pXsignal = 0;
+      double pYsignal = 0;
 
       std::fill(avail_part.begin(),avail_part.end(),1);
 
     //  while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && particles_pTOrdered[nparticles+1].pt()<pTModifiedsoftKiller){
-      while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && particles_pTOrdered[nparticles+1].pt()<pTModifiedsoftKiller){
+      while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && particles_pTOrdered[nparticles+1].pt()<pTModifiedsoftKiller && jet.delta_R(particles_pTOrdered[nparticles+1])>deltaR_min){
 
       nparticles++;
       fastjet::PseudoJet partSel = particles_pTOrdered[nparticles];
       bkgEstimate.push_back(partSel);
-      pTcurrent+= partSel.pt();
+    //  pTcurrent+= partSel.pt();
+      pXcurrent+= partSel.px();
+      pYcurrent+= partSel.py();
       avail_part[nparticles] = 0;
-
+      if (partSel.user_info<PU14>().vertex_number() == 0){
+        pXsignal+=partSel.px();
+        pYsignal+=partSel.py();
+       }
       }
 
+      pTcurrent = sqrt(pow(pXcurrent,2)+pow(pYcurrent,2));
+      pTsignal = sqrt(pow(pXsignal,2)+pow(pYsignal,2));
     //  if (ijet==0) cout << pTcurrent << endl;
 
-      double pt_below = pTcurrent;
+  //    double pt_below = pTcurrent;
 
-      while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && pTcurrent<pt_below+rhoCut_*jet.area()){
+    //  while(std::accumulate(avail_part.begin(),avail_part.end(),0)>0 && pTcurrent<pt_below+rhoCut_*jet.area()){
 
-      nparticles++;
-      fastjet::PseudoJet partSel = particles_pTOrdered[nparticles];
-      bkgEstimate.push_back(partSel);
-      pTcurrent+= partSel.pt();
-      avail_part[nparticles] = 0;
-      }
+  //    nparticles++;
+  //    fastjet::PseudoJet partSel = particles_pTOrdered[nparticles];
+  //    bkgEstimate.push_back(partSel);
+  //    pTcurrent+= partSel.pt();
+  //    avail_part[nparticles] = 0;
+  //    }
 
     //Compute the shortest distance to the correlation line
     //----------------------------------------------------------
 
-      double minus_slope_perp = 1/temperature;
-      double intercept_perp = pTcurrent + (nparticles+1)*minus_slope_perp;
-      int n_shortest = int(intercept_perp/(temperature+minus_slope_perp));
-      double pTshortest = correlation_line(temperature, n_shortest);
-      pTcurrent = pTshortest;
+  //    double minus_slope_perp = 1/temperature;
+  //    double intercept_perp = pTcurrent + (nparticles+1)*minus_slope_perp;
+  //    int n_shortest = int(intercept_perp/(temperature+minus_slope_perp));
+  //    double pTshortest = correlation_line(temperature, n_shortest);
+  //    pTcurrent = pTshortest;
   //    }
 
-      double pT_estimate = pTcurrent;
+      //double pT_estimate = pTcurrent;
 
 
     //  if (ijet==0) cout << pT_estimate << endl;
@@ -292,7 +317,7 @@ public :
 
     //    double pT_cut_corrected = nparticles*temperature*(1-(1+2*pTModifiedsoftKiller/temperature+2*pow(pTModifiedsoftKiller,2)/pow(temperature,2))*exp(-2*pTModifiedsoftKiller/temperature));
       //  if (pTcurrent > pT_cut_corrected) pTcurrent = pT_cut_corrected;
-      //  double pT_estimate = pTcurrent+rhoCut_*jet.area();
+       double pT_estimate = pTcurrent+rhoCut_*jet.area();
        if (pT_estimate > truePatchPt) pT_estimate = truePatchPt;
 
       rho_estimate.push_back(pT_estimate);
