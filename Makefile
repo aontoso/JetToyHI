@@ -31,18 +31,15 @@ COMMONSRC =
 F77SRC = 
 COMMONOBJ = 
 
-PROGSRC = runConversionQPYTHIA.cc runCreatePythiaEvents.cc runCreatePythiaEventsPartonLevel.cc runCreateThermalEvents.cc runCSVariations.cc runFromFile.cc runJetPerformance.cc runJewelSub.cc runSDGenVarious.cc runSDGenVariousJewelSub.cc runSharedLayerSubtraction.cc runSimpleJetAnalysis.cc runtest.cc
-PROGOBJ = runConversionQPYTHIA.o runCreatePythiaEvents.o runCreatePythiaEventsPartonLevel.o runCreateThermalEvents.o runCSVariations.o runFromFile.o runJetPerformance.o runJewelSub.o runSDGenVarious.o runSDGenVariousJewelSub.o runSharedLayerSubtraction.o runSimpleJetAnalysis.o runtest.o
+PROGSRC = runCreatePythiaEvents.cc runCreatePythiaEventsPartonLevel.cc runCreateThermalEvents.cc runCSVariations.cc runFromFile.cc runJetPerformance.cc runJewelSub.cc runRhoEstimator.cc runSDGenVarious.cc runSDGenVariousJewelSub.cc runSharedLayerSubtraction.cc runSimpleJetAnalysis.cc runtest.cc
+PROGOBJ = runCreatePythiaEvents.o runCreatePythiaEventsPartonLevel.o runCreateThermalEvents.o runCSVariations.o runFromFile.o runJetPerformance.o runJewelSub.o runRhoEstimator.o runSDGenVarious.o runSDGenVariousJewelSub.o runSharedLayerSubtraction.o runSimpleJetAnalysis.o runtest.o
 
 INCLUDE += 
 LIBRARIES += -LPU14 -lPU14 -lz
 
 
-all:  runConversionQPYTHIA runCreatePythiaEvents runCreatePythiaEventsPartonLevel runCreateThermalEvents runCSVariations runFromFile runJetPerformance runJewelSub runSDGenVarious runSDGenVariousJewelSub runSharedLayerSubtraction runSimpleJetAnalysis runtest 
+all:  runCreatePythiaEvents runCreatePythiaEventsPartonLevel runCreateThermalEvents runCSVariations runFromFile runJetPerformance runJewelSub runRhoEstimator runSDGenVarious runSDGenVariousJewelSub runSharedLayerSubtraction runSimpleJetAnalysis runtest 
 
-
-runConversionQPYTHIA: runConversionQPYTHIA.o  $(COMMONOBJ)
-	$(CXX) $(LDFLAGS) -o $@ $@.o $(COMMONOBJ) $(LIBRARIES)
 
 runCreatePythiaEvents: runCreatePythiaEvents.o  $(COMMONOBJ)
 	$(CXX) $(LDFLAGS) -o $@ $@.o $(COMMONOBJ) $(LIBRARIES)
@@ -63,6 +60,9 @@ runJetPerformance: runJetPerformance.o  $(COMMONOBJ)
 	$(CXX) $(LDFLAGS) -o $@ $@.o $(COMMONOBJ) $(LIBRARIES)
 
 runJewelSub: runJewelSub.o  $(COMMONOBJ)
+	$(CXX) $(LDFLAGS) -o $@ $@.o $(COMMONOBJ) $(LIBRARIES)
+
+runRhoEstimator: runRhoEstimator.o  $(COMMONOBJ)
 	$(CXX) $(LDFLAGS) -o $@ $@.o $(COMMONOBJ) $(LIBRARIES)
 
 runSDGenVarious: runSDGenVarious.o  $(COMMONOBJ)
@@ -88,7 +88,7 @@ clean:
 	rm -vf $(COMMONOBJ) $(PROGOBJ)
 
 realclean: clean
-	rm -vf  runConversionQPYTHIA runCreatePythiaEvents runCreatePythiaEventsPartonLevel runCreateThermalEvents runCSVariations runFromFile runJetPerformance runJewelSub runSDGenVarious runSDGenVariousJewelSub runSharedLayerSubtraction runSimpleJetAnalysis runtest 
+	rm -vf  runCreatePythiaEvents runCreatePythiaEventsPartonLevel runCreateThermalEvents runCSVariations runFromFile runJetPerformance runJewelSub runRhoEstimator runSDGenVarious runSDGenVariousJewelSub runSharedLayerSubtraction runSimpleJetAnalysis runtest 
 
 .cc.o:         $<
 	$(CXX) $(CXXFLAGS) $(INCLUDE) -c $< -o $@
@@ -106,9 +106,6 @@ depend:
 	makedepend  $(LCLINCLUDE) -Y --   -- $(COMMONSRC) $(PROGSRC)
 # DO NOT DELETE
 
-runConversionQPYTHIA.o: include/ProgressBar.h include/pythiaEvent.hh
-runConversionQPYTHIA.o: include/extraInfo.hh include/extraInfo.hh
-runConversionQPYTHIA.o: PU14/CmdLine.hh
 runCreatePythiaEvents.o: include/ProgressBar.h include/pythiaEvent.hh
 runCreatePythiaEvents.o: include/extraInfo.hh include/extraInfo.hh
 runCreatePythiaEvents.o: PU14/CmdLine.hh
@@ -140,11 +137,10 @@ runJetPerformance.o: include/ProgressBar.h PU14/EventMixer.hh PU14/CmdLine.hh
 runJetPerformance.o: PU14/EventSource.hh PU14/CmdLine.hh PU14/PU14.hh
 runJetPerformance.o: PU14/HepPID/ParticleIDMethods.hh
 runJetPerformance.o: include/jetCollection.hh include/csSubtractor.hh
-runJetPerformance.o: PU14/PU14.hh include/csSubtractorFullEvent.hh
-runJetPerformance.o: include/skSubtractor.hh include/softDropGroomer.hh
-runJetPerformance.o: include/jetCollection.hh include/jewelMatcher.hh
-runJetPerformance.o: include/treeWriter.hh include/jetMatcher.hh
-runJetPerformance.o: include/randomCones.hh include/Angularity.hh
+runJetPerformance.o: PU14/PU14.hh include/skSubtractor.hh
+runJetPerformance.o: include/csSubtractorFullEvent.hh include/treeWriter.hh
+runJetPerformance.o: include/jetCollection.hh include/jetMatcher.hh
+runJetPerformance.o: include/Angularity.hh
 runJewelSub.o: include/ProgressBar.h PU14/EventMixer.hh PU14/CmdLine.hh
 runJewelSub.o: PU14/EventSource.hh PU14/CmdLine.hh PU14/PU14.hh
 runJewelSub.o: PU14/HepPID/ParticleIDMethods.hh include/jetCollection.hh
@@ -154,6 +150,13 @@ runJewelSub.o: include/softDropGroomer.hh include/jetCollection.hh
 runJewelSub.o: include/jewelMatcher.hh include/treeWriter.hh
 runJewelSub.o: include/jetMatcher.hh include/randomCones.hh
 runJewelSub.o: include/Angularity.hh include/jewelMatcher.hh
+runRhoEstimator.o: include/ProgressBar.h PU14/EventMixer.hh PU14/CmdLine.hh
+runRhoEstimator.o: PU14/EventSource.hh PU14/CmdLine.hh PU14/PU14.hh
+runRhoEstimator.o: PU14/HepPID/ParticleIDMethods.hh include/rhoEstimator.hh
+runRhoEstimator.o: include/skSubtractor.hh PU14/PU14.hh include/Angularity.hh
+runRhoEstimator.o: include/treeWriter.hh include/jetCollection.hh
+runRhoEstimator.o: include/jetMatcher.hh include/skSubtractor.hh
+runRhoEstimator.o: include/Angularity.hh
 runSDGenVarious.o: include/ProgressBar.h PU14/EventMixer.hh PU14/CmdLine.hh
 runSDGenVarious.o: PU14/EventSource.hh PU14/CmdLine.hh PU14/PU14.hh
 runSDGenVarious.o: PU14/HepPID/ParticleIDMethods.hh include/jetCollection.hh
@@ -182,6 +185,7 @@ runSharedLayerSubtraction.o: include/jetCollection.hh
 runSharedLayerSubtraction.o: include/sharedLayerSubtractor.hh PU14/PU14.hh
 runSharedLayerSubtraction.o: include/Angularity.hh include/treeWriter.hh
 runSharedLayerSubtraction.o: include/jetCollection.hh include/jetMatcher.hh
+runSharedLayerSubtraction.o: include/Angularity.hh
 runSimpleJetAnalysis.o: include/ProgressBar.h PU14/EventMixer.hh
 runSimpleJetAnalysis.o: PU14/CmdLine.hh PU14/EventSource.hh PU14/CmdLine.hh
 runSimpleJetAnalysis.o: PU14/PU14.hh PU14/HepPID/ParticleIDMethods.hh
