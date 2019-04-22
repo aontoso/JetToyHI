@@ -18,7 +18,7 @@
 
 #include "include/treeWriter.hh"
 #include "include/jetMatcher.hh"
-
+#include "include/rhoEstimator.hh"
 #include "include/Angularity.hh"
 
 using namespace std;
@@ -45,14 +45,14 @@ int main (int argc, char ** argv) {
   ClusterSequence::set_fastjet_banner_stream(NULL);
 
   //to write info to root tree
-  TFile *fout = new TFile("JetToyHIResultSharedLayers_test_mass.root","RECREATE");
+  TFile *fout = new TFile("JetToyHIResultSharedLayerRhoCut_GavinBkg.root","RECREATE");
   fout->cd();
   treeWriter trw("jetTree");
 
   //Jet definition
   double R                   = 0.4;
-  double ghostRapMax         = 6.0;
-  double ghost_area          = 0.005;
+  double ghostRapMax         = 3.0;
+  double ghost_area          = 0.001;
   int    active_area_repeats = 1;
   fastjet::GhostedAreaSpec ghost_spec(ghostRapMax, active_area_repeats, ghost_area);
   fastjet::AreaDefinition area_def = fastjet::AreaDefinition(fastjet::active_area,ghost_spec);
@@ -190,7 +190,7 @@ int main (int argc, char ** argv) {
   //  auto bkg_time = std::chrono::steady_clock::now();
 
     //run jet-by-jet constituent subtraction on mixed (hard+UE) event
-    sharedLayerSubtractor sharedLayerSub(R,0.003,ghostRapMax,jetRapMax);
+    sharedLayerSubtractor sharedLayerSub(R,0.001,ghostRapMax,jetRapMax);
     sharedLayerSub.setInputParticles(particlesMerged);
     jetCollection jetCollectionSL(sharedLayerSub.doSubtraction());
 
@@ -294,7 +294,7 @@ int main (int argc, char ** argv) {
  fout->Write();
  fout->Close();
 
-  std::cout << "Check JetToyHIResultSharedLayers_test_mass.root for results" << std::endl;
+  std::cout << "Check JetToyHIResultSharedLayerRhoCut_GavinBkg.root for results" << std::endl;
 
   double time_in_seconds = std::chrono::duration_cast<std::chrono::milliseconds>
     (std::chrono::steady_clock::now() - start_time).count() / 1000.0;
