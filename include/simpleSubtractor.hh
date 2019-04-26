@@ -121,6 +121,7 @@ if(rho_ < 0)   rho_ = 0;
 
 double maxpt_bkgd = 0;
 int nparticles_bkg = 0;
+double total_area_bkgd = 0;
 
 for(fastjet::PseudoJet& jet : bkgd_jets) {
   std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
@@ -134,7 +135,7 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
      }
    } // bkgd_jets loop
 
-    int nbins_bkg = 50;
+    int nbins_bkg = 25;
     TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
     delete h;
     TH1D *h_pt_constituents = new TH1D("p_{T} const", "p_{T} const", nbins_bkg, 0.,maxpt_bkgd);
@@ -145,13 +146,15 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
   std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
     fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
     for(fastjet::PseudoJet p : particles) {
-        h_pt_constituents->Fill(p.pt());
+        h_pt_constituents->Fill(p.pt(),jet.area());
      }
+     total_area_bkgd+=jet.area();
   }
 
-  int nentries = h_pt_constituents->GetEntries();
-  h_pt_constituents->Sumw2();
-  h_pt_constituents->Scale(1./(double)nentries); // normalize
+//  int nentries = h_pt_constituents->GetEntries();
+//  h_pt_constituents->Sumw2();
+  double binWidth_bkgd = h_pt_constituents->GetBinWidth(0);
+  h_pt_constituents->Scale(1./(double)total_area_bkgd*(double)binWidth_bkgd); /// normalize
 
 
   double pt_binWidth = h_pt_constituents->GetBinWidth(0); // will use it later
@@ -165,8 +168,8 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
   subtracted_jets.reserve(jets.size());
   int ijet = -1;
   int counter = jets.size();
-  int sampling = 0;
-  int median = 0;
+//  int sampling = 0;
+//  int median = 0;
   int reduced = 0;
   for(fastjet::PseudoJet& jet : jets) {
     ++ijet;
@@ -176,9 +179,21 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
     fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
     if(particles.size()<1 || jet.pt()<1.) continue;
 
+    // Order particles from soft to high pT
+
+    std::vector<size_t> idx(particles.size());
+    iota(idx.begin(), idx.end(), 0);
+
+    std::sort(idx.begin(), idx.end(),
+              [&particles](size_t i1, size_t i2) {return particles[i1].pt() < particles[i2].pt();});
+    std::vector<fastjet::PseudoJet> particles_pTOrdered;
+    for (int i = 0; i<particles.size(); i++){
+       particles_pTOrdered.push_back(particles[idx[i]]);
+    }
+
     //set user_index of all particles to position particles vector
-    for(int i = 0; i<(int)particles.size(); ++i) {
-      particles[i].set_user_index(i);
+    for(int i = 0; i<(int)particles_pTOrdered.size(); ++i) {
+      particles_pTOrdered[i].set_user_index(i);
     }
 
     // Create a new list of particles whose pT is below the bkg max Pt
@@ -186,20 +201,20 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
     // Create a new list of particles whose pT is above the bkg max Pt and, therefore, considered to be signal
      std::vector<fastjet::PseudoJet> signalParticles;
 
-    // Histogram to save the pT-information of each jet
+    // Histogram to save the pT-information of each jet using the area
 
      TH1D *h_jet = (TH1D *)gROOT->FindObject("p_{T} const jet");
      delete h_jet;
-     TH1D *h_pt_constituents_jet = new TH1D("p_{T} const jet", "p_{T} const jet", nbins, 0.,maxpt_bkgd);
+     TH1D *h_pt_constituents_jet = new TH1D("p_{T} const jet", "p_{T} const jet", nbins_bkg, 0.,maxpt_bkgd);
 
      double pT_reduced = 0; // pT stored by the particles below the bkg max Pt
      double patch_pT = jet.pt(); // total pT of the patch
-     int nconst =0;
+     int nconst = 0;
 
      for(fastjet::PseudoJet p : particles) {
        double momentum = p.pt();
        if (momentum<=maxpt_bkgd){
-       h_pt_constituents_jet->Fill(momentum);
+       h_pt_constituents_jet->Fill(momentum,jet.area());
        particlesReduced.push_back(p);
        pT_reduced+=momentum;
        }
@@ -210,9 +225,10 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
 
   //    if (ijet==0) cout << "Number of signal particles " << nconst << endl;
 
-     h_pt_constituents_jet->Sumw2();
+  //   h_pt_constituents_jet->Sumw2();
      int nentries_jet = h_pt_constituents_jet->GetEntries();
-     h_pt_constituents_jet->Scale(1./(double)nentries_jet);
+     double binwidth_pT = h_pt_constituents_jet->GetBinWidth(0);
+     h_pt_constituents_jet->Scale(1/(double)binwidth_pT);
 
     double pTbkg_estimate = rho_*jet.area();
     //  cout << "Estimate: " << pTbkg_estimate << "pT_reduced: " << pT_reduced << endl;
@@ -327,7 +343,7 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
     }
   } // end of jets-loop
 
-  std::cout << "\n n subtracted jets: " << subtracted_jets.size() << "Number of jets: " << counter << "Sampling applied: " << sampling << "Median larger than pT" << median << "Reduced part too small: " << reduced << std::endl;
+//  std::cout << "\n n subtracted jets: " << subtracted_jets.size() << "Number of jets: " << counter << "Sampling applied: " << sampling << "Median larger than pT" << median << "Reduced part too small: " << reduced << std::endl;
   return subtracted_jets;
 
 } // end of doSubtraction
