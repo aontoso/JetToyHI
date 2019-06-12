@@ -18,7 +18,8 @@ using namespace fastjet;
 
 //---------------------------------------------------------------
 // Description
-// This class runs the GridSub1 method for JEWEL with recoils
+// This class runs the GridSub1 method for JEWEL with recoils following
+// httphs:jewel.hepforge.org/JEWEL_BKGSUBTRACTION.cc
 // Author: A. Soto-Ontoso
 //---------------------------------------------------------------
 
@@ -28,6 +29,8 @@ class gridSubtractor {
       std::vector<fastjet::PseudoJet> fjScatteringCenters_; // Scattering Centers
       std::vector<fastjet::PseudoJet> fjInputs_;   //unsubtracted jets
       std::vector<fastjet::PseudoJet> fjOutputs_;  //subtracted jets
+
+      std::vector<fastjet::PseudoJet> pJet_sub;
 
       double etaMin_;
       double phiMin_;
@@ -98,9 +101,9 @@ class gridSubtractor {
 
    std::vector<fastjet::PseudoJet> gridSubtractor::doGridSub1(jetCollection c, std::vector<fastjet::PseudoJet> ScatteringCenters)
    {
-          std::vector<fastjet::PseudoJet> subtracted_jets;
-           subtracted_jets.reserve(fjInputs_.size());
-      //    fjOutputs_.reserve(fjInputs_.size());
+    //      std::vector<fastjet::PseudoJet> subtracted_jets;
+        //   subtracted_jets.reserve(fjInputs_.size());
+        fjOutputs_.reserve(fjInputs_.size());
     //----------------------------------------------------
     // Create the grid (this could be somewhere else)
     //----------------------------------------------------
@@ -236,13 +239,8 @@ class gridSubtractor {
     } // y loop
   } // x loop
 
-    fastjet::JetDefinition jet_def(fastjet::antikt_algorithm, jetRParam_);
-    fastjet::ClusterSequence cs_sub(pJet_sub, jet_def);
 
-    std::vector<fastjet::PseudoJet> fjOutputs_ = sorted_by_pt(cs_sub.inclusive_jets());
-
-
-    return fjOutputs_;
+    return pJet_sub;
    }
 
 
