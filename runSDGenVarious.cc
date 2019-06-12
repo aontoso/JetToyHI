@@ -18,20 +18,33 @@
 #include "include/csSubtractorFullEvent.hh"
 #include "include/skSubtractor.hh"
 #include "include/softDropGroomer.hh"
+#include "include/softDropCounter.hh"
 #include "include/treeWriter.hh"
 #include "include/jetMatcher.hh"
 #include "include/randomCones.hh"
 #include "include/Angularity.hh"
+#include "include/jewelMatcher.hh"
+#include "include/gridSubtractor.hh"
 
 using namespace std;
 using namespace fastjet;
 
-//./runSDGenVarious -hard  /eos/project/j/jetquenching/JetWorkshop2017/samples/pythia8/dijet120/PythiaEventsTune14PtHat120_0.pu14 -nev 10
+// Pb+Pb@5.02 TeV w/o Recoils
+
+// ./runSDGenVarious -hard  /Users/albasotoontoso/Work/Jet_substraction/JetToyHI/samples/PbPb5p02TeV_dijet_cent05_woRecoils_50pthatInf_default_0.pu14 -nev 1
+
+// p+p@5.02 TeV
+// ./runSDGenVarious -hard  /Users/albasotoontoso/Work/Jet_substraction/JetToyHI/samples/pp5p02TeV_dijet_50pthatInf_1.pu14 -nev 1
+
+// Pb+Pb@5.02 TeV w Recoils
+
+// ./runSDGenVarious -hard  /Users/albasotoontoso/Work/Jet_substraction/JetToyHI/samples/PbPb5p02TeV_dijet_cent05_wRecoils_50pthatInf_default_0.pu14 -nev 1
+
 
 int main (int argc, char ** argv) {
 
   auto start_time = std::chrono::steady_clock::now();
-  
+
   CmdLine cmdline(argc,argv);
   // inputs read from command line
   int nEvent = cmdline.value<int>("-nev",1);  // first argument: command line option; second argument: default value
@@ -59,7 +72,7 @@ int main (int argc, char ** argv) {
 
   Angularity width(1.,1.,R);
   Angularity pTD(0.,2.,R);
-    
+
   ProgressBar Bar(cout, nEvent);
   Bar.SetStyle(-1);
 
@@ -70,7 +83,7 @@ int main (int argc, char ** argv) {
   unsigned int entryDiv = (nEvent > 200) ? nEvent / 200 : 1;
   while ( mixer.next_event() && iev < nEvent )
   {
-    // increment event number    
+    // increment event number
     iev++;
 
     Bar.Update(iev);
@@ -84,81 +97,76 @@ int main (int argc, char ** argv) {
 
     // cluster hard event only
     std::vector<fastjet::PseudoJet> particlesBkg, particlesSig;
-    SelectorIsHard().sift(particlesMerged, particlesSig, particlesBkg); // this sifts the full event into two vectors of PseudoJet, one for the hard event, one for the underlying event
-    
+    SelectorIsHard().sift(particlesMerged, particlesSig, particlesBkg); //  this sifts the full event into two vectors of PseudoJet, one for the hard event, one for the underlying event
+    std::vector<fastjet::PseudoJet> scatteringCenters;
+
+    // Find the scatteringCenters (i.e. recoil partons)
+
+    for(fastjet::PseudoJet p : particlesMerged) {
+         if (p.user_info<PU14>().vertex_number() == -1){ scatteringCenters.push_back(p);
+         }
+      }
+    //  cout << scatteringCenters.size() << endl;
     //---------------------------------------------------------------------------
     //   jet clustering
     //---------------------------------------------------------------------------
-    
+
     fastjet::ClusterSequenceArea csSig(particlesSig, jet_def, area_def);
     jetCollection jetCollectionSig(sorted_by_pt(jet_selector(csSig.inclusive_jets(10.))));
 
-    
+    //--------------------------------------------------------------------------
+    //-
+    // -------------------------------------------------------------------------
+    //- GridSubtraction
+    //--------------------------------------------------------------------------
+
+    gridSubtractor jewelSub(-1., -M_PI, 1., M_PI,0.4,0.05);
+    std::vector<fastjet::PseudoJet> prueba = jewelSub.doGridSub1(jetCollectionSig,scatteringCenters);
+
+    vector<PseudoJet> constituents = prueba[0].constituents();
+     for (unsigned j = 0; j < constituents.size(); j++) {
+  cout << " constituent " << j << "’s pt: "<< constituents[j].perp() << endl; }
+    jetCollection jetCollectionSub(prueba);
+
     //---------------------------------------------------------------------------
     //   Groom the jets
     //---------------------------------------------------------------------------
-    
+
     //SoftDrop grooming classic for signal jets (zcut=0.1, beta=0)
-    softDropGroomer sdgSigBeta00Z01(0.1, 0.0, R);
-    jetCollection jetCollectionSigSDBeta00Z01(sdgSigBeta00Z01.doGrooming(jetCollectionSig));
-    jetCollectionSigSDBeta00Z01.addVector("zgSigSDBeta00Z01",    sdgSigBeta00Z01.getZgs());
-    jetCollectionSigSDBeta00Z01.addVector("ndropSigSDBeta00Z01", sdgSigBeta00Z01.getNDroppedSubjets());
-    jetCollectionSigSDBeta00Z01.addVector("dr12SigSDBeta00Z01",  sdgSigBeta00Z01.getDR12());
+    softDropGroomer sdgSigBeta00Z01(0.1, 0, R);
+    jetCollection jetCollectionSigSD(sdgSigBeta00Z01.doGrooming(jetCollectionSig));
+  //  jetCollectionSigSD.addVector("zgSigSDBeta00Z01",    sdgSigBeta00Z01.getZgs());
+    //jetCollectionSigSD.addVector("ndropSigSDBeta00Z01", sdgSigBeta00Z01.getNDroppedSubjets());
+  //  jetCollectionSigSD.addVector("dr12SigSDBeta00Z01",  sdgSigBeta00Z01.getDR12());
 
-    softDropGroomer sdgSigBeta00Z02(0.2, 0.0, R);
-    jetCollection jetCollectionSigSDBeta00Z02(sdgSigBeta00Z02.doGrooming(jetCollectionSig));
-    jetCollectionSigSDBeta00Z02.addVector("zgSigSDBeta00Z02",    sdgSigBeta00Z02.getZgs());
-    jetCollectionSigSDBeta00Z02.addVector("ndropSigSDBeta00Z02", sdgSigBeta00Z02.getNDroppedSubjets());
-    jetCollectionSigSDBeta00Z02.addVector("dr12SigSDBeta00Z02",  sdgSigBeta00Z02.getDR12());
-    
-    softDropGroomer sdgSigBeta15Z05(0.5, 1.5, R);
-    jetCollection jetCollectionSigSDBeta15Z05(sdgSigBeta15Z05.doGrooming(jetCollectionSig));
-    jetCollectionSigSDBeta15Z05.addVector("zgSigSDBeta15Z05",    sdgSigBeta15Z05.getZgs());
-    jetCollectionSigSDBeta15Z05.addVector("ndropSigSDBeta15Z05", sdgSigBeta15Z05.getNDroppedSubjets());
-    jetCollectionSigSDBeta15Z05.addVector("dr12SigSDBeta15Z05",  sdgSigBeta15Z05.getDR12());
+    //--------------------------------------------------------------------------
+    // Count the number of soft drop splittings
+    //--------------------------------------------------------------------------
 
-    softDropGroomer sdgSigBetam1Z01(0.1, -1., R);
-    jetCollection jetCollectionSigSDBetam1Z01(sdgSigBetam1Z01.doGrooming(jetCollectionSig));
-    jetCollectionSigSDBetam1Z01.addVector("zgSigSDBetam1Z01",    sdgSigBetam1Z01.getZgs());
-    jetCollectionSigSDBetam1Z01.addVector("ndropSigSDBetam1Z01", sdgSigBetam1Z01.getNDroppedSubjets());
-    jetCollectionSigSDBetam1Z01.addVector("dr12SigSDBetam1Z01",  sdgSigBetam1Z01.getDR12());
+    softDropCounter sdgCounter(0.1,0.,R,0.0);
+    sdgCounter.run(jetCollectionSig);
+    jetCollectionSigSD.addVector("nsd", sdgCounter.calculateNSD(0.,0.));
+    jetCollectionSigSD.addVector("tf", sdgCounter.calculateTf());
+    jetCollectionSigSD.addVector("deltaR", sdgCounter.calculateDeltaR());
+    jetCollectionSigSD.addVector("zg", sdgCounter.calculateZg());
+    jetCollectionSigSD.addVector("kt", sdgCounter.calculatekT());
+    std::vector<std::vector<double>> Result = sdgCounter.calculateTf();
+    if (nEvent==1)cout << Result.at(0).size() << endl;
 
-    softDropGroomer sdgSigBetam1Z02(0.2, -1., R);
-    jetCollection jetCollectionSigSDBetam1Z02(sdgSigBetam1Z02.doGrooming(jetCollectionSig));
-    jetCollectionSigSDBetam1Z02.addVector("zgSigSDBetam1Z02",    sdgSigBetam1Z02.getZgs());
-    jetCollectionSigSDBetam1Z02.addVector("ndropSigSDBetam1Z02", sdgSigBetam1Z02.getNDroppedSubjets());
-    jetCollectionSigSDBetam1Z02.addVector("dr12SigSDBetam1Z02",  sdgSigBetam1Z02.getDR12());
-
-    softDropGroomer sdgSigBetam2Z01(0.1, -2., R);
-    jetCollection jetCollectionSigSDBetam2Z01(sdgSigBetam2Z01.doGrooming(jetCollectionSig));
-    jetCollectionSigSDBetam2Z01.addVector("zgSigSDBetam2Z01",    sdgSigBetam2Z01.getZgs());
-    jetCollectionSigSDBetam2Z01.addVector("ndropSigSDBetam2Z01", sdgSigBetam2Z01.getNDroppedSubjets());
-    jetCollectionSigSDBetam2Z01.addVector("dr12SigSDBetam2Z01",  sdgSigBetam2Z01.getDR12());
-
-    softDropGroomer sdgSigBetam2Z005(0.05, -2., R);
-    jetCollection jetCollectionSigSDBetam2Z005(sdgSigBetam2Z005.doGrooming(jetCollectionSig));
-    jetCollectionSigSDBetam2Z005.addVector("zgSigSDBetam2Z005",    sdgSigBetam2Z005.getZgs());
-    jetCollectionSigSDBetam2Z005.addVector("ndropSigSDBetam2Z005", sdgSigBetam2Z005.getNDroppedSubjets());
-    jetCollectionSigSDBetam2Z005.addVector("dr12SigSDBetam2Z005",  sdgSigBetam2Z005.getDR12());
-
+//jetCollectionSigSD.addDoubleCollection("bla",Result);
     //---------------------------------------------------------------------------
     //   write tree
     //---------------------------------------------------------------------------
-    
+
     //Give variable we want to write out to treeWriter.
     //Only vectors of the types 'jetCollection', and 'double', 'int', 'fastjet::PseudoJet' are supported
 
     trw.addCollection("eventWeight",   eventWeight);
+    trw.addCollection("subJet",        jetCollectionSub, true);
+    trw.addCollection("sdJet",      jetCollectionSigSD, true);
+    //trw.addDoubleVectorCollection("tf", Result);
+//
 
-    trw.addCollection("sigJet",        jetCollectionSig);
-    trw.addCollection("sigJetSDBeta00Z01",      jetCollectionSigSDBeta00Z01);
-    trw.addCollection("sigJetSDBeta00Z02",      jetCollectionSigSDBeta00Z02);
-    trw.addCollection("sigJetSDBeta15Z05",      jetCollectionSigSDBeta15Z05);
-    trw.addCollection("sigJetSDBetam1Z01",      jetCollectionSigSDBetam1Z01);
-    trw.addCollection("sigJetSDBetam1Z02",      jetCollectionSigSDBetam1Z02);
-    trw.addCollection("sigJetSDBetam2Z01",      jetCollectionSigSDBetam2Z01);
-    trw.addCollection("sigJetSDBetam2Z005",     jetCollectionSigSDBetam2Z005);
-    
     trw.fillTree();
 
   }//event loop
@@ -169,10 +177,13 @@ int main (int argc, char ** argv) {
 
   TTree *trOut = trw.getTree();
 
-  TFile *fout = new TFile("JetToyHIResultSDGen.root","RECREATE");
+  TFile *fout = new TFile("JetToyHIResultSD_JEWELwRecoil_PbPb_Zcut01Rcut0_fullInfo.root","RECREATE");
   trOut->Write();
+  trOut->Scan();
   fout->Write();
   fout->Close();
+  //trOut->GetEntry(0);
+    std::cout << "Check JetToyHIResultSD_JEWELwRecoil_PbPb_Zcut01Rcut0_fullInfo.root for results" << std::endl;
 
   double time_in_seconds = std::chrono::duration_cast<std::chrono::milliseconds>
     (std::chrono::steady_clock::now() - start_time).count() / 1000.0;
