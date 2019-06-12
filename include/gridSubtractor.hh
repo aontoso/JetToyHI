@@ -28,9 +28,8 @@ class gridSubtractor {
    private :
       std::vector<fastjet::PseudoJet> fjScatteringCenters_; // Scattering Centers
       std::vector<fastjet::PseudoJet> fjInputs_;   //unsubtracted jets
-      std::vector<fastjet::PseudoJet> fjOutputs_;  //subtracted jets
 
-      std::vector<fastjet::PseudoJet> pJet_sub;
+      std::vector<fastjet::PseudoJet> pJet_sub; // list of particles after subtraction
 
       double etaMin_;
       double phiMin_;
