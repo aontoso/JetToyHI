@@ -71,11 +71,6 @@ public :
   double getRho()  const { return rho_; }
   double getRhoSigma() const { return rhoSigma_; }
 
-  // By calling this function we can get the value of the "real" pt given the linear assumption
-   double correlation_line(double slope, int n_constituents){
-   return slope*(n_constituents+1); //+1 because the arrays start in zero
-   };
-
   std::vector<double> doEstimation() {
 
   //  fastjet::GhostedAreaSpec ghost_spec(ghostRapMax_, 1, ghostArea_);
@@ -232,7 +227,7 @@ public :
        }
 
 
-      std::vector<fastjet::PseudoJet> bkgEstimate;  //list of particles until we reach the correlation line
+    //  std::vector<fastjet::PseudoJet> bkgEstimate;  //list of particles until we reach the correlation line
       std::vector<int> avail_part(particles_pTOrdered.size()); // list of particles still available
 
       double pTcurrent = 0; // to make sure it goes into the while loop
@@ -246,7 +241,7 @@ public :
 
       nparticles++;
       fastjet::PseudoJet partSel = particles_pTOrdered[nparticles];
-      bkgEstimate.push_back(partSel);
+  //    bkgEstimate.push_back(partSel);
       pTcurrent+= partSel.pt();
 
       avail_part[nparticles] = 0;
@@ -258,11 +253,11 @@ public :
 
       //Trial to correct for the signal contramination below the pt cut
       //------------------------------------------------------------------
-      double pT_bkg_cut = temperature*(1-(1+2*pTModifiedsoftKiller/temperature+2*pow(pTModifiedsoftKiller,2)/pow(temperature,2))*exp(-2*pTModifiedsoftKiller/temperature));
-      double nparticles_bkg_cut = double(nparticles)/(1-(1+2*pTModifiedsoftKiller/temperature)*exp(-2*pTModifiedsoftKiller/temperature));
-      double pT_cut_corrected = nparticles_bkg_cut*pT_bkg_cut;
+    //  double pT_bkg_cut = temperature*(1-(1+2*pTModifiedsoftKiller/temperature+2*pow(pTModifiedsoftKiller,2)/pow(temperature,2))*exp(-2*pTModifiedsoftKiller/temperature));
+    //  double nparticles_bkg_cut = double(nparticles)/(1-(//1+2*pTModifiedsoftKiller/temperature)*exp(-2*pTModifiedsoftKiller/temperature));
+    //  double pT_cut_corrected = nparticles_bkg_cut*pT_bkg_cut;
 
-       if (pTcurrent > pT_cut_corrected) pTcurrent = pT_cut_corrected;
+      // if (pTcurrent > pT_cut_corrected) pTcurrent = pT_cut_corrected;
        double pT_estimate = pTcurrent+rhoCut_*jet.area();
        if (pT_estimate > truePatchPt) pT_estimate = truePatchPt;
 
