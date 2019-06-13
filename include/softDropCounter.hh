@@ -29,6 +29,7 @@ private :
    std::vector<fastjet::PseudoJet> fjInputs_;     // ungroomed jets
    std::vector<std::vector<double>> zgs_;         // all the zg's in the algorithm
    std::vector<std::vector<double>> drs_;         // and the angles in the algorithm
+   std::vector<std::vector<double>> pts_;         // and the angles in the algorithm
 
 public :
    softDropCounter(double z = 0.1, double beta = 0.0, double r0 = 0.4, double rcut = 0.1);
@@ -41,7 +42,10 @@ public :
    void run(const std::vector<fastjet::PseudoJet> &v);
    void run();
    std::vector<double> calculateNSD(double Kappa, double AngleKappa = 0);
-   std::vector<double> calculateTf();
+   std::vector<std::vector<double>> calculateTf();
+   std::vector<std::vector<double>> calculateDeltaR();
+   std::vector<std::vector<double>> calculateZg();
+   std::vector<std::vector<double>> calculatekT();
 };
 
 softDropCounter::softDropCounter(double z, double beta, double r0, double rcut)
@@ -95,6 +99,7 @@ void softDropCounter::run()
       {
          zgs_.push_back(vector<double>());
          drs_.push_back(vector<double>());
+         pts_.push_back(vector<double>());
          continue;
       }
 
@@ -109,6 +114,7 @@ void softDropCounter::run()
       {
          zgs_.push_back(vector<double>());
          drs_.push_back(vector<double>());
+         pts_.push_back(vector<double>());
          continue;
       }
 
@@ -117,6 +123,7 @@ void softDropCounter::run()
 
       std::vector<double> z;
       std::vector<double> dr;
+      std::vector<double> pt;
 
       while(CurrentJet.has_parents(Part1, Part2))
       {
@@ -142,6 +149,7 @@ void softDropCounter::run()
          {
             z.push_back(zg);
             dr.push_back(DeltaR);
+            pt.push_back(PT1+PT2);
          }
 
          if(PT1 > PT2)
@@ -152,6 +160,7 @@ void softDropCounter::run()
 
       zgs_.push_back(z);
       drs_.push_back(dr);
+      pts_.push_back(pt);
    }
 }
 
@@ -170,19 +179,78 @@ std::vector<double> softDropCounter::calculateNSD(double Kappa, double AngleKapp
    return Result;
 }
 
-std::vector<double> softDropCounter::calculateTf()
+std::vector<std::vector<double>> softDropCounter::calculateTf()
 {
-   std::vector<double> Result;
+   std::vector<std::vector<double>> Result_two;
 
    for(int i = 0; i < (int)zgs_.size(); i++)
    {
-      double Total = 0;
-      for(int j = 0; j < (int)zgs_[i].size(); j++)
-         Total = Total + pow(zgs_[i][j], Kappa) * pow(drs_[i][j], AngleKappa);
-      Result.push_back(Total);
+      std::vector<double> onejet_tf;
+      onejet_tf.reserve(zgs_[i].size());
+      for(int j = 0; j < (int)zgs_[i].size(); j++){
+         double mass2 = (zgs_[i][j]*(1-zgs_[i][j])*pow(pts_[i][j],2)*pow(drs_[i][j],2))/(pow(r0_,2));
+         double GeVtofm = 5.068;
+         double formation_time = (2*pts_[i][j])/(mass2*GeVtofm);
+         onejet_tf.push_back(formation_time);
+       }
+      Result_two.push_back(onejet_tf);
    }
 
-   return Result;
+   return Result_two;
+}
+
+std::vector<std::vector<double>> softDropCounter::calculateDeltaR()
+{
+   std::vector<std::vector<double>> Result_three;
+
+   for(int i = 0; i < (int)zgs_.size(); i++)
+   {
+      std::vector<double> onejet_deltaR;
+      onejet_deltaR.reserve(zgs_[i].size());
+      for(int j = 0; j < (int)zgs_[i].size(); j++){
+         double delta_r = drs_[i][j];
+         onejet_deltaR.push_back(delta_r);
+       }
+      Result_three.push_back(onejet_deltaR);
+   }
+
+   return Result_three;
+}
+
+std::vector<std::vector<double>> softDropCounter::calculateZg()
+{
+   std::vector<std::vector<double>> Result_four;
+
+   for(int i = 0; i < (int)zgs_.size(); i++)
+   {
+      std::vector<double> onejet_zg;
+      onejet_zg.reserve(zgs_[i].size());
+      for(int j = 0; j < (int)zgs_[i].size(); j++){
+         double zg = zgs_[i][j];
+         onejet_zg.push_back(zg);
+       }
+      Result_four.push_back(onejet_zg);
+   }
+
+   return Result_four;
+}
+
+std::vector<std::vector<double>> softDropCounter::calculatekT()
+{
+   std::vector<std::vector<double>> Result_five;
+
+   for(int i = 0; i < (int)zgs_.size(); i++)
+   {
+      std::vector<double> onejet_kts;
+      onejet_kts.reserve(zgs_[i].size());
+      for(int j = 0; j < (int)zgs_[i].size(); j++){
+         double kt = zgs_[i][j]*(1-zgs_[i][j])*pts_[i][j]*drs_[i][j]/r0_;
+         onejet_kts.push_back(kt);
+       }
+      Result_five.push_back(onejet_kts);
+   }
+
+   return Result_five;
 }
 
 #endif
