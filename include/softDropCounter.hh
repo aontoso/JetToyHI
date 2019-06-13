@@ -41,6 +41,7 @@ public :
    void run(const std::vector<fastjet::PseudoJet> &v);
    void run();
    std::vector<double> calculateNSD(double Kappa, double AngleKappa = 0);
+   std::vector<double> calculateTf();
 };
 
 softDropCounter::softDropCounter(double z, double beta, double r0, double rcut)
@@ -155,6 +156,21 @@ void softDropCounter::run()
 }
 
 std::vector<double> softDropCounter::calculateNSD(double Kappa, double AngleKappa)
+{
+   std::vector<double> Result;
+
+   for(int i = 0; i < (int)zgs_.size(); i++)
+   {
+      double Total = 0;
+      for(int j = 0; j < (int)zgs_[i].size(); j++)
+         Total = Total + pow(zgs_[i][j], Kappa) * pow(drs_[i][j], AngleKappa);
+      Result.push_back(Total);
+   }
+
+   return Result;
+}
+
+std::vector<double> softDropCounter::calculateTf()
 {
    std::vector<double> Result;
 
