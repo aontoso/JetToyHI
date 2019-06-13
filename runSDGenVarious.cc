@@ -121,20 +121,20 @@ int main (int argc, char ** argv) {
     //--------------------------------------------------------------------------
 
     gridSubtractor jewelSub(-1., -M_PI, 1., M_PI,0.4,0.05);
-    std::vector<fastjet::PseudoJet> prueba = jewelSub.doGridSub1(jetCollectionSig,scatteringCenters);
+  //  std::vector<fastjet::PseudoJet> prueba = jewelSub.doGridSub1(jetCollectionSig,scatteringCenters);
+    std::vector<fastjet::PseudoJet> subtracted_particles = jewelSub.doGridSub1(jetCollectionSig,scatteringCenters);
+    //cout << subtracted_particles.size() << endl;
+    fastjet::ClusterSequenceArea csSub(subtracted_particles, jet_def, area_def);
+    jetCollection jetCollectionSub(sorted_by_pt(jet_selector(csSub.inclusive_jets(10.))));
 
-    vector<PseudoJet> constituents = prueba[0].constituents();
-     for (unsigned j = 0; j < constituents.size(); j++) {
-  cout << " constituent " << j << "’s pt: "<< constituents[j].perp() << endl; }
-    jetCollection jetCollectionSub(prueba);
 
     //---------------------------------------------------------------------------
     //   Groom the jets
     //---------------------------------------------------------------------------
 
     //SoftDrop grooming classic for signal jets (zcut=0.1, beta=0)
-    softDropGroomer sdgSigBeta00Z01(0.1, 0, R);
-    jetCollection jetCollectionSigSD(sdgSigBeta00Z01.doGrooming(jetCollectionSig));
+  //  softDropGroomer sdgSigBeta00Z01(0.1, 0, R);
+    //jetCollection jetCollectionSigSD(sdgSigBeta00Z01.doGrooming(jetCollectionSub));
   //  jetCollectionSigSD.addVector("zgSigSDBeta00Z01",    sdgSigBeta00Z01.getZgs());
     //jetCollectionSigSD.addVector("ndropSigSDBeta00Z01", sdgSigBeta00Z01.getNDroppedSubjets());
   //  jetCollectionSigSD.addVector("dr12SigSDBeta00Z01",  sdgSigBeta00Z01.getDR12());
@@ -143,15 +143,15 @@ int main (int argc, char ** argv) {
     // Count the number of soft drop splittings
     //--------------------------------------------------------------------------
 
-    softDropCounter sdgCounter(0.1,0.,R,0.0);
-    sdgCounter.run(jetCollectionSig);
-    jetCollectionSigSD.addVector("nsd", sdgCounter.calculateNSD(0.,0.));
-    jetCollectionSigSD.addVector("tf", sdgCounter.calculateTf());
-    jetCollectionSigSD.addVector("deltaR", sdgCounter.calculateDeltaR());
-    jetCollectionSigSD.addVector("zg", sdgCounter.calculateZg());
-    jetCollectionSigSD.addVector("kt", sdgCounter.calculatekT());
-    std::vector<std::vector<double>> Result = sdgCounter.calculateTf();
-    if (nEvent==1)cout << Result.at(0).size() << endl;
+    softDropCounter sdgCounter(0.1,0.,R,0.1);
+    sdgCounter.run(jetCollectionSub);
+    jetCollectionSub.addVector("nsd", sdgCounter.calculateNSD(0.,0.));
+    jetCollectionSub.addVector("tf", sdgCounter.calculateTf());
+    jetCollectionSub.addVector("deltaR", sdgCounter.calculateDeltaR());
+    jetCollectionSub.addVector("zg", sdgCounter.calculateZg());
+    jetCollectionSub.addVector("kt", sdgCounter.calculatekT());
+  //  std::vector<std::vector<double>> Result = sdgCounter.calculateTf();
+  //  if (nEvent==1)cout << Result.at(0).size() << endl;
 
 //jetCollectionSigSD.addDoubleCollection("bla",Result);
     //---------------------------------------------------------------------------
@@ -163,7 +163,7 @@ int main (int argc, char ** argv) {
 
     trw.addCollection("eventWeight",   eventWeight);
     trw.addCollection("subJet",        jetCollectionSub, true);
-    trw.addCollection("sdJet",      jetCollectionSigSD, true);
+  //  trw.addCollection("sdJet",      jetCollectionSigSD, true);
     //trw.addDoubleVectorCollection("tf", Result);
 //
 
@@ -177,13 +177,13 @@ int main (int argc, char ** argv) {
 
   TTree *trOut = trw.getTree();
 
-  TFile *fout = new TFile("JetToyHIResultSD_JEWELwRecoil_PbPb_Zcut01Rcut0_fullInfo.root","RECREATE");
+  TFile *fout = new TFile("JetToyHIResultSD_JEWELwRecoil_PbPb_Zcut01Rcut01_test.root","RECREATE");
   trOut->Write();
-  trOut->Scan();
+//  trOut->Scan();
   fout->Write();
   fout->Close();
   //trOut->GetEntry(0);
-    std::cout << "Check JetToyHIResultSD_JEWELwRecoil_PbPb_Zcut01Rcut0_fullInfo.root for results" << std::endl;
+    std::cout << "Check JetToyHIResultSD_JEWELwRecoil_PbPb_Zcut01Rcut01_test.root for results" << std::endl;
 
   double time_in_seconds = std::chrono::duration_cast<std::chrono::milliseconds>
     (std::chrono::steady_clock::now() - start_time).count() / 1000.0;

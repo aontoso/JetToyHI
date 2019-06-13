@@ -13,6 +13,7 @@
 #include "fastjet/PseudoJet.hh"
 
 #include "jetCollection.hh"
+#include  "../PU14/PU14.hh"
 
 //---------------------------------------------------------------
 // Description
@@ -106,7 +107,12 @@ void treeWriter::addJetCollection(std::string name, const jetCollection &c, bool
   std::vector<std::string> intKeys = c.getListOfKeysInt();
   for(std::string tag: intKeys)
     addIntCollection(tag, c.getVectorInt(tag));
+
+    std::vector<std::string> doubledoubleKeys = c.getListOfKeysDoubleDouble();
+    for(std::string tag: doubledoubleKeys)
+       addDoubleVectorCollection(tag, c.getVectorDoubleDouble(tag));
 }
+
 
 void treeWriter::addJetCollection(std::string name, const std::vector<fastjet::PseudoJet> v, bool writeConst)
 {
@@ -121,6 +127,8 @@ void treeWriter::addJetCollection(std::string name, const std::vector<fastjet::P
   std::vector<std::vector<double>> constEta;
   std::vector<std::vector<double>> constPhi;
   std::vector<std::vector<double>> constM;
+  std::vector<std::vector<double>> constId;
+  std::vector<std::vector<double>> constDeltaR;
   //if(writeConst) {
   //  constPt.clear();
   //  constPt.reserve(v.size());
@@ -139,7 +147,9 @@ void treeWriter::addJetCollection(std::string name, const std::vector<fastjet::P
       std::vector<double> etaConst;
       std::vector<double> phiConst;
       std::vector<double> mConst;
-      
+      std::vector<double> IdConst;
+      std::vector<double> DeltaRConst;
+
       std::vector<fastjet::PseudoJet> particles, ghosts;
       fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
       for(const fastjet::PseudoJet& p : particles) {
@@ -147,11 +157,15 @@ void treeWriter::addJetCollection(std::string name, const std::vector<fastjet::P
         etaConst.push_back(p.eta());
         phiConst.push_back(p.phi());
         mConst.push_back(p.m());
+      //  IdConst.push_back(p.user_info<PU14>().vertex_number());
+      //  DeltaRConst.push_back(p.delta_R(jet));
       }
       constPt.push_back(ptConst);
       constEta.push_back(etaConst);
       constPhi.push_back(phiConst);
       constM.push_back(mConst);
+    //  constId.push_back(IdConst);
+    //  constDeltaR.push_back(DeltaRConst);
     }
   }
 
@@ -167,12 +181,12 @@ void treeWriter::addJetCollection(std::string name, const std::vector<fastjet::P
     doubleVectorMaps_[branchName] = constPt;
     if(!treeOut_->GetBranch(branchName.c_str()))
       treeOut_->Branch(branchName.c_str(),&doubleVectorMaps_[branchName]);
-    
+
     branchName = name + "ConstEta";
     doubleVectorMaps_[branchName] = constEta;
     if(!treeOut_->GetBranch(branchName.c_str()))
       treeOut_->Branch(branchName.c_str(),&doubleVectorMaps_[branchName]);
-    
+
     branchName = name + "ConstPhi";
     doubleVectorMaps_[branchName] = constPhi;
     if(!treeOut_->GetBranch(branchName.c_str()))
@@ -182,7 +196,16 @@ void treeWriter::addJetCollection(std::string name, const std::vector<fastjet::P
     doubleVectorMaps_[branchName] = constM;
     if(!treeOut_->GetBranch(branchName.c_str()))
       treeOut_->Branch(branchName.c_str(),&doubleVectorMaps_[branchName]);
-    
+
+  //  branchName = name + "ConstId";
+//    doubleVectorMaps_[branchName] = constId;
+  //  if(!treeOut_->GetBranch(branchName.c_str()))
+  //      treeOut_->Branch(branchName.c_str(),&doubleVectorMaps_[branchName]);
+
+  //  branchName = name + "ConstDeltaR";
+  //  doubleVectorMaps_[branchName] = constDeltaR;
+  //  if(!treeOut_->GetBranch(branchName.c_str()))
+  //  treeOut_->Branch(branchName.c_str(),&doubleVectorMaps_[branchName]);
   }
 }
 
@@ -209,17 +232,17 @@ void treeWriter::bookBranchIntVec(std::string name)
   if(!treeOut_->GetBranch(name.c_str()))
     treeOut_->Branch(name.c_str(),&intMaps_[name]);
 }
-/*
-void addDoubleVectorCollection(std::string name, const std::vector<std::vector<double> > v)
-{
-  doubleVectorMaps_[name] = v;
-  bookBranchDoubleVectorVec(name);
-}
-*/
+
 void treeWriter::bookBranchDoubleVectorVec(std::string name)
 {
   if(!treeOut_->GetBranch(name.c_str()))
     treeOut_->Branch(name.c_str(),&doubleVectorMaps_[name]);
+}
+
+void treeWriter::addDoubleVectorCollection(std::string name, const std::vector<std::vector<double> > v)
+{
+  doubleVectorMaps_[name] = v;
+  bookBranchDoubleVectorVec(name);
 }
 
 #endif
