@@ -95,6 +95,17 @@ fastjet::ClusterSequenceArea cs(fjInputs_, jet_def, area_def);
 fastjet::Selector jet_selector = SelectorAbsRapMax(jetRapMax_);
 jets = fastjet::sorted_by_pt(jet_selector(cs.inclusive_jets()));
 
+// Background
+
+fastjet::JetDefinition jet_estimate_bkgd(fastjet::kt_algorithm, 0.4);
+fastjet::AreaDefinition area_estimate_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
+fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4)*(!fastjet::SelectorNHardest(2));
+fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_estimate_bkgd, area_estimate_bkgd);
+bkgd_estimator.set_particles(fjInputs_);
+ double rho_ = 0;
+rho_ = bkgd_estimator.rho();
+if(rho_ < 0)    rho_ = 0;
+
 //cout << "SoftConstKiller: " << jets.at(0).pt()<< endl;
 
 fastjet::JetDefinition jet_defSub(antikt_algorithm, 20.);
@@ -125,6 +136,11 @@ vector<double> rho_Estimate(rhoComputation.doEstimation());
      fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts_two, particles_two);
      if(particles_two.size()<1 || jet.pt()<1.) continue;
 
+     double scalarpT = 0;
+     for(fastjet::PseudoJet p : particles_two) {
+          double momentum = p.pt();
+          scalarpT+=momentum;
+        }
 
       contrib::ConstituentSubtractor subtractor_(rho_Estimate[ijet]/jet.area(), rho_Estimate[ijet]/jet.area());
       subtractor_.set_distance_type(contrib::ConstituentSubtractor::deltaR);
@@ -134,6 +150,14 @@ vector<double> rho_Estimate(rhoComputation.doEstimation());
     fastjet::PseudoJet subtracted_jet = subtractor_(jet);
     std::vector<fastjet::PseudoJet> particles, ghosts;
     fastjet::SelectorIsPureGhost().sift(subtracted_jet.constituents(), ghosts, particles);
+    double scalarpT_sub = 0;
+    for(fastjet::PseudoJet p : particles) {
+         double momentum = p.pt();
+         scalarpT_sub+=momentum;
+       }
+    if (ijet == 0) cout << "Before Subtraction: " << jet.pt() << "After Subtraction: " << subtracted_jet.pt() << "AreaMedian Bkg" << rho_Estimate[ijet]<< "Scalar pT: " << scalarpT << "Sub Scalar pT: " << scalarpT_sub << endl;
+
+  //  fastjet::SelectorIsPureGhost().sift(subtracted_jet.constituents(), ghosts, particles);
 
     std::vector<fastjet::PseudoJet> A, B;
     SelectorIsHard().sift(jet.constituents(), A, B);
