@@ -78,8 +78,8 @@ public :
   if(csJetSub) delete csJetSub;
 }
 
-//std::vector<fastjet::PseudoJet> doSubtraction() {
-  std::vector<double> doSubtraction() {
+std::vector<fastjet::PseudoJet> doSubtraction() {
+//  std::vector<double> doSubtraction() {
   Hard.clear();
   Soft.clear();
 
@@ -111,7 +111,7 @@ jets = fastjet::sorted_by_pt(jet_selector(cs.inclusive_jets()));
 
 fastjet::JetDefinition jet_defSub(antikt_algorithm, 20.);
 fastjet::AreaDefinition area_def_sub = fastjet::AreaDefinition(fastjet::active_area_explicit_ghosts,ghost_spec_sub);
-fastjet::ClusterSequenceArea csSub(fjInputs_, jet_defSub, area_def_sub);
+//fastjet::ClusterSequenceArea csSub(fjInputs_, jet_defSub, area_def_sub);
 
 // SoftKiller estimate for the Background pT
 // -----------------------------------------------------------
@@ -149,18 +149,18 @@ vector<double> rho_Estimate(rhoComputation.doEstimation());
           scalarpT+=momentum;
         }
 
-        double trueRho = 0;
+        double trueRho_escalar = 0;
          for(fastjet::PseudoJet p : particles_two) {
          if (abs(p.user_info<PU14>().vertex_number()) == 1) {
-           trueRho+=p.pt();
+           trueRho_escalar+=p.pt();
            sum_x+=p.px();
            sum_y+=p.py();
          };
         }
         vectorialpT=sqrt(pow(sum_x,2)+pow(sum_y,2));
         double bkg_estimate = 0;
-       if (jet.area()==0 || trueRho == 0) bkg_estimate = 0;
-       else bkg_estimate = trueRho/jet.area();
+       if (jet.area()==0 || trueRho_escalar == 0) bkg_estimate = 0;
+       else bkg_estimate = trueRho_escalar/jet.area();
       contrib::ConstituentSubtractor subtractor_(bkg_estimate, bkg_estimate);
       subtractor_.set_distance_type(contrib::ConstituentSubtractor::deltaR);
       subtractor_.set_max_distance(-1.); //free parameter for the maximal allowed distance between particle i and ghost k
@@ -174,62 +174,66 @@ vector<double> rho_Estimate(rhoComputation.doEstimation());
          double momentum = p.pt();
          scalarpT_sub+=momentum;
        }
-  if (abs(jet.pt()-subtracted_jet.pt()-bkg_estimate*jet.area()) > 5)
-  cout << "Before Subtraction: " << jet.pt() << "After Subtraction: " << subtracted_jet.pt() << "True Bkg" << trueRho<< "Scalar pT: " << scalarpT << "Sub Scalar pT: " << scalarpT_sub << endl;
+  //if (abs(jet.pt()-subtracted_jet.pt()-bkg_estimate*jet.area()) > 5)
+//  cout << "Before Subtraction: " << jet.pt() << "After Subtraction: " << subtracted_jet.pt() << "True Bkg" << trueRho<< "Scalar pT: " << scalarpT << "Sub Scalar pT: " << scalarpT_sub << endl;
 
 //  if(ijet==0) cout << "Before Subtraction: " << jet.pt() << "After Subtraction: " << subtracted_jet.pt() << "True Bkg" << vectorialpT<< "Scalar pT: " << scalarpT << "Sub Scalar pT: " << scalarpT_sub << endl;
 
-  double pT_resol_jet = jet.pt()-subtracted_jet.pt()-vectorialpT;
+  double pT_resol_jet = scalarpT-scalarpT_sub-trueRho_escalar;
 
   //  fastjet::SelectorIsPureGhost().sift(subtracted_jet.constituents(), ghosts, particles);
 
-    std::vector<fastjet::PseudoJet> A, B;
-    SelectorIsHard().sift(jet.constituents(), A, B);
+  //  std::vector<fastjet::PseudoJet> A, B;
+  //  SelectorIsHard().sift(jet.constituents(), A, B);
 
-     std::vector<fastjet::PseudoJet> hard, soft;
-     for(fastjet::PseudoJet p : subtracted_jet.constituents())
-     {
-        double BestA = -1, BestB = -1;
-        for(fastjet::PseudoJet x : A)
-        {
-           double DR2 = p.squared_distance(x);
-           if(BestA < 0 || BestA > DR2)
-              BestA = DR2;
-        }
-        for(fastjet::PseudoJet x : B)
-        {
-           double DR2 = p.squared_distance(x);
-           if(BestB < 0 || BestB > DR2)
-              BestB = DR2;
-        }
-        if(BestA < BestB)
-           hard.push_back(p);
-        else
-           soft.push_back(p);
-     }
+  //   std::vector<fastjet::PseudoJet> hard, soft;
+  //   for(fastjet::PseudoJet p : subtracted_jet.constituents())
+  //   {
+  //      double BestA = -1, BestB = -1;
+  //      for(fastjet::PseudoJet x : A)
+  //      {
+  //         double DR2 = p.squared_distance(x);
+  //         if(BestA < 0 || BestA > DR2)
+  //            BestA = DR2;
+  //      }
+  //      for(fastjet::PseudoJet x : B)
+  //      {
+  //         double DR2 = p.squared_distance(x);
+  //         if(BestB < 0 || BestB > DR2)
+  //            BestB = DR2;
+  //      }
+  //      if(BestA < BestB)
+  //         hard.push_back(p);
+  //      else
+  //         soft.push_back(p);
+  //   }
 
      if(particles.size() > 0)
      {
-        std::vector<fastjet::PseudoJet> combinedparticles;
-        for(fastjet::PseudoJet p : particles)
-           combinedparticles.push_back(fastjet::PseudoJet(p.px(), p.py(), p.pz(), p.E()));
+      fastjet::ClusterSequenceArea *csSub = new fastjet::ClusterSequenceArea(particles, jet_defSub, area_def_sub);
+       std::vector<fastjet::PseudoJet> jetSub = fastjet::sorted_by_pt(csSub->inclusive_jets());
+       if(jetSub[0].pt()>0.) csjets.push_back(jetSub[0]);
+       if(csjets.size()>0 && csjets.size()<2) csSub->delete_self_when_unused();
 
-          for(fastjet::PseudoJet p : jet.constituents())
-           if(p.E() < 1e-5)
-              combinedparticles.push_back(fastjet::PseudoJet(p.px(), p.py(), p.pz(), p.E()));
+    //    std::vector<fastjet::PseudoJet> combinedparticles;
+    //    for(fastjet::PseudoJet p : particles)
+    //       combinedparticles.push_back(fastjet::PseudoJet(p.px(), p.py(), p.pz(), p.E()));
 
-        csjets.push_back(fastjet::PseudoJet(join(combinedparticles)));
-        Hard.push_back(hard);
-        Soft.push_back(soft);
+    //      for(fastjet::PseudoJet p : jet.constituents())
+    //       if(p.E() < 1e-5)
+    //          combinedparticles.push_back(fastjet::PseudoJet(p.px(), p.py(), p.pz(), p.E()));
+
+  //      csjets.push_back(fastjet::PseudoJet(join(combinedparticles)));
+  //      Hard.push_back(hard);
+  //      Soft.push_back(soft);
      }
   //   cout << csjets.at(0).pt() << endl;
-     if(subtracted_jet.pt()>120) pT_resolution.push_back(pT_resol_jet);
+  //   if(jet.pt()>120) pT_resolution.push_back(pT_resol_jet);
   }
 
-//  std::cout << "\n n subtracted jets: " << csjets.size() << std::endl;
-
-//  return csjets;
-    return pT_resolution;
+//  std::cout << "\n n subtracted jets: " << csjets.size() << std::endl
+  return csjets;
+//    return pT_resolution;
 
 } // end of doSubtraction
 
