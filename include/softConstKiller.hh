@@ -51,6 +51,7 @@ private :
   std::random_device rd_;
 
   fastjet::ClusterSequenceArea *csJetSub;
+  contrib::ConstituentSubtractor subtractor_;
 
 public :
    softConstKiller(double rJet = 0.4,
@@ -77,8 +78,8 @@ public :
   if(csJetSub) delete csJetSub;
 }
 
-std::vector<fastjet::PseudoJet> doSubtraction() {
-
+//std::vector<fastjet::PseudoJet> doSubtraction() {
+  std::vector<double> doSubtraction() {
   Hard.clear();
   Soft.clear();
 
@@ -97,14 +98,14 @@ jets = fastjet::sorted_by_pt(jet_selector(cs.inclusive_jets()));
 
 // Background
 
-fastjet::JetDefinition jet_estimate_bkgd(fastjet::kt_algorithm, 0.4);
-fastjet::AreaDefinition area_estimate_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
-fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4)*(!fastjet::SelectorNHardest(2));
-fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_estimate_bkgd, area_estimate_bkgd);
-bkgd_estimator.set_particles(fjInputs_);
- double rho_ = 0;
-rho_ = bkgd_estimator.rho();
-if(rho_ < 0)    rho_ = 0;
+//fastjet::JetDefinition jet_estimate_bkgd(fastjet::kt_algorithm, 0.4);
+//fastjet::AreaDefinition area_estimate_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
+//fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4)*(!fastjet::SelectorNHardest(2));
+//fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_estimate_bkgd, area_estimate_bkgd);
+//bkgd_estimator.set_particles(fjInputs_);
+// double rho_ = 0;
+//rho_ = bkgd_estimator.rho();
+//if(rho_ < 0)    rho_ = 0;
 
 //cout << "SoftConstKiller: " << jets.at(0).pt()<< endl;
 
@@ -126,6 +127,9 @@ vector<double> rho_Estimate(rhoComputation.doEstimation());
   csjets.reserve(jets.size());
   int ijet = -1;
 
+  std::vector<double> pT_resolution; // one for each patch;
+  pT_resolution.reserve(jets.size());
+
   for(fastjet::PseudoJet& jet : jets) {
       ijet++;
       if(jet.is_pure_ghost()) continue;
@@ -137,12 +141,27 @@ vector<double> rho_Estimate(rhoComputation.doEstimation());
      if(particles_two.size()<1 || jet.pt()<1.) continue;
 
      double scalarpT = 0;
+     double vectorialpT = 0;
+     double sum_x = 0;
+     double sum_y = 0;
      for(fastjet::PseudoJet p : particles_two) {
           double momentum = p.pt();
           scalarpT+=momentum;
         }
 
-      contrib::ConstituentSubtractor subtractor_(rho_Estimate[ijet]/jet.area(), rho_Estimate[ijet]/jet.area());
+        double trueRho = 0;
+         for(fastjet::PseudoJet p : particles_two) {
+         if (abs(p.user_info<PU14>().vertex_number()) == 1) {
+           trueRho+=p.pt();
+           sum_x+=p.px();
+           sum_y+=p.py();
+         };
+        }
+        vectorialpT=sqrt(pow(sum_x,2)+pow(sum_y,2));
+        double bkg_estimate = 0;
+       if (jet.area()==0 || trueRho == 0) bkg_estimate = 0;
+       else bkg_estimate = trueRho/jet.area();
+      contrib::ConstituentSubtractor subtractor_(bkg_estimate, bkg_estimate);
       subtractor_.set_distance_type(contrib::ConstituentSubtractor::deltaR);
       subtractor_.set_max_distance(-1.); //free parameter for the maximal allowed distance between particle i and ghost k
       subtractor_.set_alpha(1.); // free parameter for the distance measure (the exponent of particle pt). Note that in older versions of the package alpha was multiplied by two but in newer versions this is not the case anymore
@@ -155,7 +174,12 @@ vector<double> rho_Estimate(rhoComputation.doEstimation());
          double momentum = p.pt();
          scalarpT_sub+=momentum;
        }
-    if (ijet == 0) cout << "Before Subtraction: " << jet.pt() << "After Subtraction: " << subtracted_jet.pt() << "AreaMedian Bkg" << rho_Estimate[ijet]<< "Scalar pT: " << scalarpT << "Sub Scalar pT: " << scalarpT_sub << endl;
+  if (abs(jet.pt()-subtracted_jet.pt()-bkg_estimate*jet.area()) > 5)
+  cout << "Before Subtraction: " << jet.pt() << "After Subtraction: " << subtracted_jet.pt() << "True Bkg" << trueRho<< "Scalar pT: " << scalarpT << "Sub Scalar pT: " << scalarpT_sub << endl;
+
+//  if(ijet==0) cout << "Before Subtraction: " << jet.pt() << "After Subtraction: " << subtracted_jet.pt() << "True Bkg" << vectorialpT<< "Scalar pT: " << scalarpT << "Sub Scalar pT: " << scalarpT_sub << endl;
+
+  double pT_resol_jet = jet.pt()-subtracted_jet.pt()-vectorialpT;
 
   //  fastjet::SelectorIsPureGhost().sift(subtracted_jet.constituents(), ghosts, particles);
 
@@ -198,12 +222,14 @@ vector<double> rho_Estimate(rhoComputation.doEstimation());
         Hard.push_back(hard);
         Soft.push_back(soft);
      }
-     //cout << csjets.at(0).pt() << endl;
+  //   cout << csjets.at(0).pt() << endl;
+     if(subtracted_jet.pt()>120) pT_resolution.push_back(pT_resol_jet);
   }
 
 //  std::cout << "\n n subtracted jets: " << csjets.size() << std::endl;
 
-  return csjets;
+//  return csjets;
+    return pT_resolution;
 
 } // end of doSubtraction
 
