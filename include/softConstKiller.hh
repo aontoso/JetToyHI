@@ -45,8 +45,8 @@ private :
   std::vector<fastjet::PseudoJet> fjJetInputs_;
 
   std::vector<fastjet::PseudoJet> fjJetParticles_;
-  std::vector<std::vector<fastjet::PseudoJet>> Hard;
-  std::vector<std::vector<fastjet::PseudoJet>> Soft;
+  //std::vector<std::vector<fastjet::PseudoJet>> Hard;
+  //std::vector<std::vector<fastjet::PseudoJet>> Soft;
 
   std::random_device rd_;
 
@@ -80,8 +80,8 @@ public :
 
 std::vector<fastjet::PseudoJet> doSubtraction() {
 //  std::vector<double> doSubtraction() {
-  Hard.clear();
-  Soft.clear();
+//  Hard.clear();
+//  Soft.clear();
 
 fastjet::GhostedAreaSpec ghost_spec(ghostRapMax_, 1, ghostArea_);
 fastjet::GhostedAreaSpec ghost_spec_sub(ghostRapMax_, 1, 1.);
@@ -116,9 +116,9 @@ fastjet::AreaDefinition area_def_sub = fastjet::AreaDefinition(fastjet::active_a
 // SoftKiller estimate for the Background pT
 // -----------------------------------------------------------
 
-skEstimator rhoComputation(jetRParam_,rKTParam_,ghostArea_,ghostRapMax_,jetRapMax_);
-rhoComputation.setInputParticles(fjInputs_);
-vector<double> rho_Estimate(rhoComputation.doEstimation());
+//skEstimator rhoComputation(jetRParam_,rKTParam_,ghostArea_,ghostRapMax_,jetRapMax_);
+//rhoComputation.setInputParticles(fjInputs_);
+//vector<double> rho_Estimate(rhoComputation.doEstimation());
 
 
   // Jet-by-jet subtraction
@@ -140,24 +140,24 @@ vector<double> rho_Estimate(rhoComputation.doEstimation());
      fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts_two, particles_two);
      if(particles_two.size()<1 || jet.pt()<1.) continue;
 
-     double scalarpT = 0;
-     double vectorialpT = 0;
-     double sum_x = 0;
-     double sum_y = 0;
-     for(fastjet::PseudoJet p : particles_two) {
-          double momentum = p.pt();
-          scalarpT+=momentum;
-        }
+  //   double scalarpT = 0;
+  //   double vectorialpT = 0;
+  //   double sum_x = 0;
+  //   double sum_y = 0;
+    // for(fastjet::PseudoJet p : particles_two) {
+    //      double momentum = p.pt();
+    //      scalarpT+=momentum;
+    //    }
 
         double trueRho_escalar = 0;
          for(fastjet::PseudoJet p : particles_two) {
          if (abs(p.user_info<PU14>().vertex_number()) == 1) {
            trueRho_escalar+=p.pt();
-           sum_x+=p.px();
-           sum_y+=p.py();
+        //   sum_x+=p.px();
+        //   sum_y+=p.py();
          };
         }
-        vectorialpT=sqrt(pow(sum_x,2)+pow(sum_y,2));
+      //  vectorialpT=sqrt(pow(sum_x,2)+pow(sum_y,2));
         double bkg_estimate = 0;
        if (jet.area()==0 || trueRho_escalar == 0) bkg_estimate = 0;
        else bkg_estimate = trueRho_escalar/jet.area();
@@ -179,7 +179,7 @@ vector<double> rho_Estimate(rhoComputation.doEstimation());
 
 //  if(ijet==0) cout << "Before Subtraction: " << jet.pt() << "After Subtraction: " << subtracted_jet.pt() << "True Bkg" << vectorialpT<< "Scalar pT: " << scalarpT << "Sub Scalar pT: " << scalarpT_sub << endl;
 
-  double pT_resol_jet = scalarpT-scalarpT_sub-trueRho_escalar;
+//  double pT_resol_jet = scalarpT-scalarpT_sub-trueRho_escalar;
 
   //  fastjet::SelectorIsPureGhost().sift(subtracted_jet.constituents(), ghosts, particles);
 
