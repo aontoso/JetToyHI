@@ -123,6 +123,9 @@ public :
        std::vector<double> rhoMedian_bkgd;
        std::vector<double> rhoCut_bkgd;
 
+       double rhoMedian_ = 0;
+       double rhoCut_ = 0;
+
          for(fastjet::PseudoJet& jet : bkg_jets) {
              double rho_const = 0;
              double rho_cut = 0;
