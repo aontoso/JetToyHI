@@ -73,33 +73,18 @@ public :
 
   std::vector<double> doEstimation() {
 
-  //  fastjet::GhostedAreaSpec ghost_spec(ghostRapMax_, 1, ghostArea_);
+    fastjet::GhostedAreaSpec ghost_spec(ghostRapMax_, 1, ghostArea_);
     std::vector<fastjet::PseudoJet> jets = fjJetInputs_;
 
     // Create what we need for the background estimation
     //---------------------------------------------------------
 
-   fastjet::GhostedAreaSpec ghost_spec(ghostRapMax_, 1, 0.001);
-
    fastjet::JetDefinition jet_estimate_bkgd(fastjet::kt_algorithm, 0.4);
    fastjet::AreaDefinition area_estimate_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
    fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4)*(!fastjet::SelectorNHardest(2));
-  // fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4);
 
    fastjet::ClusterSequenceArea csKt(fjInputs_, jet_estimate_bkgd, area_estimate_bkgd);
    std::vector<fastjet::PseudoJet> bkg_jets = fastjet::sorted_by_pt(selector(csKt.inclusive_jets()));
-
-    fastjet::JetMedianBackgroundEstimator bkgd_estimator(selector, jet_estimate_bkgd, area_estimate_bkgd);
-
-    bkgd_estimator.set_particles(fjInputs_);
-    bkgd_estimator.set_jets(bkg_jets);
-
-
-    double rhoMedian_ = 0;
-    double rhoCut_ = 0;
-    // Compute the rho median for each event and its standard deviation
-
-     rhoMedian_ = bkgd_estimator.rho();
 
 
     // Determine the ptCut a la Soft Killer
@@ -128,6 +113,8 @@ public :
       //  double alpha = 0.; // alpha is between (0,1). Controls how much we want to be like soft Killer. For alpha = 0 we recover the area-median result. For alpha = 1, soft Killer.
       // double pTModifiedsoftKiller = alpha * pTsoftKiller;
 
+
+        // Use a fixed soft-cut
        double pTModifiedsoftKiller = 2.4;
 
        // Determine the rho(cut): rho computed after pT < pTcut have been removed
@@ -140,9 +127,10 @@ public :
              double rho_const = 0;
              double rho_cut = 0;
 
-             std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
+             std::vector<fastjet::PseudoJet> particles, ghosts;
              fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
-          // Find the maximum-pt of patch in the background
+
+          // Compute rho above the cut and the usual rho
             for(fastjet::PseudoJet p : particles) {
                  double momentum = p.pt();
                  rho_const+=momentum;
@@ -164,11 +152,6 @@ public :
            rhoMedian_ = rhoMedian_bkgd[rhoMedian_bkgd.size()/2];
            rhoCut_ = rhoCut_bkgd[rhoCut_bkgd.size()/2];
 
-
-    // Determination of the slope ("temperature") of the correlation line
-    //----------------------------------------------------------
-
-     double temperature = 1.2;
 
     // Do the anti-kt clustering
     //------------------------------------------------------------
@@ -227,7 +210,7 @@ public :
        }
 
 
-    //  std::vector<fastjet::PseudoJet> bkgEstimate;  //list of particles until we reach the correlation line
+      std::vector<fastjet::PseudoJet> bkgEstimate;  //list of particles that we use for the p_t estimate
       std::vector<int> avail_part(particles_pTOrdered.size()); // list of particles still available
 
       double pTcurrent = 0; // to make sure it goes into the while loop
@@ -241,7 +224,7 @@ public :
 
       nparticles++;
       fastjet::PseudoJet partSel = particles_pTOrdered[nparticles];
-  //    bkgEstimate.push_back(partSel);
+      bkgEstimate.push_back(partSel);
       pTcurrent+= partSel.pt();
 
       avail_part[nparticles] = 0;
@@ -251,13 +234,6 @@ public :
       }
 
 
-      //Trial to correct for the signal contramination below the pt cut
-      //------------------------------------------------------------------
-    //  double pT_bkg_cut = temperature*(1-(1+2*pTModifiedsoftKiller/temperature+2*pow(pTModifiedsoftKiller,2)/pow(temperature,2))*exp(-2*pTModifiedsoftKiller/temperature));
-    //  double nparticles_bkg_cut = double(nparticles)/(1-(//1+2*pTModifiedsoftKiller/temperature)*exp(-2*pTModifiedsoftKiller/temperature));
-    //  double pT_cut_corrected = nparticles_bkg_cut*pT_bkg_cut;
-
-      // if (pTcurrent > pT_cut_corrected) pTcurrent = pT_cut_corrected;
        double pT_estimate = pTcurrent+rhoCut_*jet.area();
        if (pT_estimate > truePatchPt) pT_estimate = truePatchPt;
 
