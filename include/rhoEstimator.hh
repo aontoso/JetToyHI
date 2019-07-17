@@ -115,7 +115,8 @@ public :
 
 
         // Use a fixed soft-cut
-       double pTModifiedsoftKiller = 2.4;
+       double mu = 1.2;
+       double pTModifiedsoftKiller = 2*mu;
 
        // Determine the rho(cut): rho computed after pT < pTcut have been removed
        //-------------------------------------------------------------
