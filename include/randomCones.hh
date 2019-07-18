@@ -40,8 +40,8 @@ public :
   randomCones(unsigned int nCones = 4, double rParam = 0.4, double etaMax = 2.3);
 
   void setInputParticles(std::vector<fastjet::PseudoJet> v) { fjInputs_ = v; }
-  
-  std::vector<fastjet::PseudoJet> run();
+
+  std::vector<std::vector<fastjet::PseudoJet>> run();
 };
 
 randomCones::randomCones(unsigned int nCones, double rParam, double etaMax)
@@ -54,36 +54,36 @@ randomCones::randomCones(unsigned int nCones, double rParam, double etaMax)
 }
 
 
-std::vector<fastjet::PseudoJet>  randomCones::run() {
-  
+std::vector<std::vector<fastjet::PseudoJet>>  randomCones::run() {
+
   if(!rnd_) rnd_ = new TRandom3(0);
-    
-  std::vector<fastjet::PseudoJet> cones;
-  cones.reserve(nCones_);
+
+  std::vector<std::vector<fastjet::PseudoJet>> cones;
+//  cones.reserve(nCones_);
 
   double minPhi = 0.;
   double maxPhi = 2.*TMath::Pi();
-    
+
   for(unsigned int i = 0; i<nCones_; ++i) {
 
     //pick random position for random cone
     double etaRC = rnd_->Rndm() * (etaMax_ - -1.*etaMax_) + -1.*etaMax_;
     double phiRC = rnd_->Rndm() * (maxPhi - minPhi) + minPhi;
-
+    std::vector<fastjet::PseudoJet> part_cone;
     double ptRC = 0.;
     for(fastjet::PseudoJet part : fjInputs_) {
       double dr = deltaR(part.phi(),phiRC,part.eta(),etaRC);
       if(dr<rParam_) {
         //std::cout << "phi: " << part.phi() << " " << phiRC << " eta: " << part.eta() << " " << etaRC << std::endl;
         ptRC+=part.pt();
+      part_cone.push_back(part);
       }
     }
-
     fastjet::PseudoJet cone;
     cone.reset_momentum_PtYPhiM(ptRC,etaRC,phiRC,0.);
-    cones.push_back(cone);
+    cones.push_back(part_cone);
   }
-    
+
   return cones;
 }
 
