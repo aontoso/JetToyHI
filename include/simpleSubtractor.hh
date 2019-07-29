@@ -125,7 +125,7 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
     delete h;
     TH1D *h_pt_constituents = new TH1D("p_{T} const", "p_{T} const", nbins_bkg, 0.,maxpt_bkgd);
 
-   double binWidth_bkgd = h_pt_constituents->GetBinWidth(0);
+  // double binWidth_bkgd = h_pt_constituents->GetBinWidth(0);
 
 for(fastjet::PseudoJet& jet : bkgd_jets) {
 
@@ -165,7 +165,7 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
     }
 
       double cone_rapidity = -jet.eta()+jetRParam_;
-      randomCones rigidcone(5, jetRParam_, cone_rapidity);
+      randomCones rigidcone(2, jetRParam_, cone_rapidity);
       rigidcone.setInputParticles(fjInputs_);
       std::vector<std::vector<double>> cones;
       cones = rigidcone.run();
@@ -175,7 +175,7 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
 
   double maxdeltar_bkgd = 0;
   int nparticles_bkg = 0;
-  double total_deltaR_bkgd = 0;
+  //double total_deltaR_bkgd = 0;
 
   for(int i = 0; i<cones.size(); i++) {
    // Find the maximum-pt of the background
@@ -191,7 +191,6 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
       delete h_cone;
       TH1D *h_deltar_constituents = new TH1D("deltaR const", "deltaR const", nbins_bkg_deltar, 0.,maxdeltar_bkgd);
 
-     double binWidth_bkgd_deltaR = h_deltar_constituents->GetBinWidth(0);
 
   for(int i = 0; i<cones.size(); i++) {
     for(int j = 0; j<cones[i].size(); j++) {
@@ -203,9 +202,9 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
     //      cout << maxpt_bkgd << endl;
     h_deltar_constituents->Scale(1./((double)h_deltar_constituents->GetEntries())); //normalize
 
-    double pt_binWidth = h_pt_constituents->GetBinWidth(0); // will use it later
-    int nbins = h_pt_constituents->GetNbinsX();
-    double ptmax = h_pt_constituents->GetBinCenter(nbins)+pt_binWidth/2;
+    double deltar_binWidth = h_deltar_constituents->GetBinWidth(0); // will use it later
+    int nbins_deltar = h_deltar_constituents->GetNbinsX();
+    double deltarmax = h_deltar_constituents->GetBinCenter(nbins_deltar)+deltar_binWidth/2;
 
     //Jet constituents pT-spectrum
     //----------------------------------------------------------
@@ -227,20 +226,23 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
 
      TH1D *h_deltar = (TH1D *)gROOT->FindObject("deltaR const jet");
      delete h_deltar;
-     TH1D *h_deltar_constituents_jet = new TH1D("deltaR const jet", "deltaR const jet", nbins_bkg_deltar, 0.,maxdeltar_bkgd);
+     TH1D *h_deltar_constituents_jet = new TH1D("deltaR const jet", "deltaR const jet", nbins_deltar, 0.,maxdeltar_bkgd);
 
      for(fastjet::PseudoJet p : particles) {
        double momentum = p.pt();
        double deltar = jet.delta_R(p);
        patch_pT+=momentum;
-       if (momentum<=maxpt_bkgd){
+       if (momentum<=maxpt_bkgd && deltar<maxdeltar_bkgd){
        h_pt_constituents_jet->Fill(momentum,momentum);
+       h_deltar_constituents_jet->Fill(deltar);
        particlesReduced.push_back(p);
        pT_reduced+=momentum;
        }
        else signalParticles.push_back(p);
-       if (deltar < maxdeltar_bkgd) h_deltar_constituents_jet->Fill(deltar);
      }
+
+    h_deltar_constituents_jet->Scale(1./((double)h_deltar_constituents_jet->GetEntries()));
+
 
 
      double trueRho = 0;
@@ -275,13 +277,13 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
      sampling++;
        h_pt_constituents->Scale(pTbkg_estimate);
 
-       if(ijet==0){
-      TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
+    //   if(ijet==0){
+    //  TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
 
-            h_deltar_constituents->Draw("HIST");
-            h_deltar_constituents_jet->DrawNormalized(" HIST SAME");
-            c1->SaveAs("Prueba_4.C");
-          }
+    //        h_deltar_constituents->Draw("HIST");
+    //        h_deltar_constituents_jet->DrawNormalized(" HIST SAME");
+    //        c1->SaveAs("Prueba_4.C");
+    //      }
 
      //     cout << "After: " << h_pt_constituents->GetBinContent(1) << endl;
      // cout << pTbkg_estimate << endl;
@@ -306,21 +308,30 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
        if(avail_part.at(candidate)!=0){
 
          double candidate_pt = particlesReduced[candidate].pt();
-         int candidate_ptbin = int(candidate_pt*nbins/ptmax)+1;
-         double candidate_pt_mean = h_pt_constituents->GetBinContent(candidate_ptbin);
-         if(candidate_pt_mean==0) candidate_pt_mean = (h_pt_constituents->GetBinContent(candidate_ptbin+1)+h_pt_constituents->GetBinContent(candidate_ptbin-1))/2;
+         double candidate_deltar=jet.delta_R(particlesReduced[candidate]);
+      //   int candidate_ptbin = int(candidate_pt*nbins/ptmax)+1;
+         int candidate_deltarbin = int(candidate_deltar*nbins_deltar/deltarmax)+1;
+         double candidate_deltar_mean = h_deltar_constituents->GetBinContent(candidate_deltarbin);
+        // double candidate_pt_mean = h_pt_constituents->GetBinContent(candidate_ptbin);
+      //   if(candidate_pt_mean==0) candidate_pt_mean = (h_pt_constituents->GetBinContent(candidate_ptbin+1)+h_pt_constituents->GetBinContent(candidate_ptbin-1))/2;
+      if(candidate_deltar_mean==0) candidate_deltar_mean = (h_deltar_constituents->GetBinContent(candidate_deltarbin+1)+h_deltar_constituents->GetBinContent(candidate_deltarbin-1))/2;
 
 
-         double candidate_pt_error = h_pt_constituents->GetBinError(candidate_ptbin);
-         double candidate_pt_prob = candidate_pt_mean + candidate_pt_error;
+    //     double candidate_pt_error = h_pt_constituents->GetBinError(candidate_ptbin);
+         double candidate_deltar_error = h_deltar_constituents->GetBinError(candidate_deltarbin);
+    //     double candidate_pt_prob = candidate_pt_mean + candidate_pt_error;
+         double candidate_deltar_prob = candidate_deltar_mean + candidate_deltar_error;
 
-         double upper_limit_mean = h_pt_constituents_jet->GetBinContent(candidate_ptbin);
-         double upper_limit_error = h_pt_constituents_jet->GetBinError(candidate_ptbin);
+    //     double upper_limit_mean = h_pt_constituents_jet->GetBinContent(candidate_ptbin);
+         double upper_limit_mean = h_deltar_constituents_jet->GetBinContent(candidate_deltarbin);
+      //   double upper_limit_error = h_pt_constituents_jet->GetBinError(candidate_ptbin);
+         double upper_limit_error = h_deltar_constituents_jet->GetBinError(candidate_deltarbin);
+
          double upper_limit = upper_limit_mean + upper_limit_error;
 
 
 
-         if (candidate_pt_prob >= upper_limit){ //When the signal+background is below the background
+         if (candidate_deltar_prob >= upper_limit){ //When the signal+background is below the background
 
             ipSelected = candidate;
             avail_part.at(ipSelected) = 0;
@@ -333,8 +344,8 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
           std::uniform_real_distribution<double> distPt(0., upper_limit);
 
           double random_prob = distPt(rndSeed);
-     //      if(ijet==0)  cout << "Bkg: " << candidate_pt_prob << "Bkg+Sig" << random_prob << endl;
-         if (candidate_pt_prob >= random_prob){
+      //   if(ijet == 0) cout << "Bkg: " << candidate_deltar_prob << "Bkg+Sig" << random_prob << endl;
+         if (candidate_deltar_prob >= random_prob){
             ipSelected = candidate;
             avail_part.at(ipSelected) = 0;
          //   if(ijet==4) cout << "Particle accepted: " << candidate << endl;
