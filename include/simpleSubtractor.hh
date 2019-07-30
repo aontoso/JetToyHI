@@ -17,6 +17,7 @@
 #include "fastjet/ClusterSequenceArea.hh"
 #include "fastjet/tools/JetMedianBackgroundEstimator.hh"
 #include "skEstimator.hh"
+#include "randomCones.hh"
 
 #include "../PU14/PU14.hh"
 
@@ -121,12 +122,11 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
      }
    } // bkgd_jets loop
 
-    int nbins_bkg = 25;
+    int nbins_bkg = 10;
     TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
     delete h;
     TH1D *h_pt_constituents = new TH1D("p_{T} const", "p_{T} const", nbins_bkg, 0.,maxpt_bkgd);
 
-   double binWidth_bkgd = h_pt_constituents->GetBinWidth(0);
 
 for(fastjet::PseudoJet& jet : bkgd_jets) {
 
@@ -151,7 +151,6 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
   std::vector<fastjet::PseudoJet> subtracted_jets;
   subtracted_jets.reserve(jets.size());
   int ijet = -1;
-  int counter = jets.size();
   int sampling = 0;
   int median = 0;
   int reduced = 0;
@@ -168,6 +167,45 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
       particles[i].set_user_index(i);
     }
 
+    double cone_rapidity = -jet.eta()+jetRParam_;
+    randomCones rigidcone(2, jetRParam_, cone_rapidity,maxpt_bkgd);
+    rigidcone.setInputParticles(fjInputs_);
+    std::vector<std::vector<double>> cones;
+    cones = rigidcone.run();
+
+// Random cones constituents pT-spectrum
+//----------------------------------------------------------
+
+double maxdeltar_bkgd = 0;
+int nparticles_bkg = 0;
+
+for(int i = 0; i<cones.size(); i++) {
+// Find the maximum-deltaR of the background
+for(int j = 0; j<cones[i].size(); j++) {
+     double deltar = cones[i][j];
+     if (deltar > maxdeltar_bkgd) maxdeltar_bkgd = deltar;
+     nparticles_bkg++;
+  }
+ } // random_cone loop
+//
+ int nbins_bkg_deltar = 5;
+ TH1D *h_cone = (TH1D *)gROOT->FindObject("deltaR const");
+ delete h_cone;
+ TH1D *h_deltar_constituents = new TH1D("deltaR const", "deltaR const", nbins_bkg_deltar, 0.,maxdeltar_bkgd);
+
+double binWidth_bkgd_deltaR = h_deltar_constituents->GetBinWidth(0);
+
+for(int i = 0; i<cones.size(); i++) {
+for(int j = 0; j<cones[i].size(); j++) {
+    double deltar = cones[i][j];
+    h_deltar_constituents->Fill(deltar);
+ }
+}
+
+//      cout << maxpt_bkgd << endl;
+h_deltar_constituents->Scale(1./((double)h_deltar_constituents->GetEntries())); //normalize
+double deltarmax = h_deltar_constituents->GetBinCenter(nbins_bkg_deltar)+binWidth_bkgd_deltaR/2;
+
     // Create a new list of particles whose pT is below the bkg max Pt
      std::vector<fastjet::PseudoJet> particlesReduced;
     // Create a new list of particles whose pT is above the bkg max Pt and, therefore, considered to be signal
@@ -181,30 +219,26 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
 
      double pT_reduced = 0; // pT stored by the particles below the bkg max Pt
      double patch_pT = 0; // total pT of the patch
-     int nconst = 0;
+
+     TH1D *h_deltar = (TH1D *)gROOT->FindObject("deltaR const jet");
+     delete h_deltar;
+     TH1D *h_deltar_constituents_jet = new TH1D("deltaR const jet", "deltaR const jet", nbins_bkg_deltar, 0.,maxdeltar_bkgd);
+
 
      for(fastjet::PseudoJet p : particles) {
        double momentum = p.pt();
+       double deltar = jet.delta_R(p);
        patch_pT+=momentum;
-     }
-
-
-     for(fastjet::PseudoJet p : particles) {
-       double momentum = p.pt();
        if (momentum<=maxpt_bkgd){
-       h_pt_constituents_jet->Fill(momentum,momentum);
-       particlesReduced.push_back(p);
-       pT_reduced+=momentum;
+         h_pt_constituents_jet->Fill(momentum,momentum);
+         particlesReduced.push_back(p);
+         pT_reduced+=momentum;
+         if (deltar < maxdeltar_bkgd) h_deltar_constituents_jet->Fill(deltar);
        }
        else signalParticles.push_back(p);
-     }
+    }
 
-    // int nentries_jet = h_pt_constituents_jet->GetEntries();
-    // double binwidth_pT = h_pt_constituents_jet->GetBinWidth(0);
-    // h_pt_constituents_jet->Scale(1/((double)binwidth_pT));
-
-  //    double rho_ = trueRho/jet.area();
-  //  double pTbkg_estimate = rho_Estimate[ijet];
+        h_deltar_constituents_jet->Scale(1./((double)h_deltar_constituents_jet->GetEntries()));
 
   for(int i = 0; i<(int)particlesReduced.size(); ++i) {
     particlesReduced[i].set_user_index(i);
@@ -250,10 +284,14 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
       //     cout << "After: " << h_pt_constituents->GetBinContent(1) << endl;
       // cout << pTbkg_estimate << endl;
 //      std::random_shuffle(particlesReduced.begin(), particlesReduced.end()); // randomize the vector
-  //Next step: figure out the probability of each particle to be background
+
+  //Next step: figure out the probability of each particle to be background /only with momentum up to now
 //----------------------------------------------------------
 std::vector<double> prob_idx(particlesReduced.size(),0);
 std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
+
+// One loop for the momentum
+//------------------------------------------------------------------------
   for(int ic = 0; ic<(int)particlesReduced.size(); ++ic) {
 //    if (ijet==0)cout << particles[indices[ic]].user_index() << endl;
    double candidate_pt = particlesReduced[ic].pt();
@@ -278,8 +316,41 @@ std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
      double prob_bkg = candidate_pt_prob/random_prob;
      if (prob_bkg>1) prob_bkg =1;
      //cout << prob_bkg << endl;
-     prob_idx[particlesReduced[ic].user_index()]=prob_bkg;
+     prob_idx[particlesReduced[ic].user_index()]= -2*log(prob_bkg);
     }
+    prob_idx[particlesReduced[ic].user_index()] = abs(prob_idx[particlesReduced[ic].user_index()]);
+  }
+
+  // One loop for the angle
+  //------------------------------------------------------------------------
+
+  for(int ic = 0; ic<(int)particlesReduced.size(); ++ic) {
+//    if (ijet==0)cout << particles[indices[ic]].user_index() << endl;
+   double candidate_deltar = jet.delta_R(particlesReduced[ic]);
+   int candidate_deltarbin = int(candidate_deltar*nbins_bkg_deltar/deltarmax)+1;
+   double candidate_deltar_mean = h_deltar_constituents->GetBinContent(candidate_deltarbin);
+   if(candidate_deltar_mean==0) candidate_deltar_mean = (h_deltar_constituents->GetBinContent(candidate_deltarbin+1)+h_deltar_constituents->GetBinContent(candidate_deltarbin-1))/2;
+
+   double candidate_deltar_error = h_deltar_constituents->GetBinError(candidate_deltarbin);
+   double candidate_deltar_prob = candidate_deltar_mean + candidate_deltar_error;
+
+   double upper_limit_mean = h_deltar_constituents_jet->GetBinContent(candidate_deltarbin);
+   double upper_limit_error = h_deltar_constituents_jet->GetBinError(candidate_deltarbin);
+   double upper_limit = upper_limit_mean + upper_limit_error;
+
+   if (candidate_deltar_prob >= upper_limit){ //When the signal+background is below the background
+    prob_idx[particlesReduced[ic].user_index()]=1;
+   }
+   else{
+     std::uniform_real_distribution<double> distPt(0., upper_limit);
+
+     double random_prob = distPt(rndSeed);
+     double prob_bkg = candidate_deltar_prob/random_prob;
+     if (prob_bkg>1) prob_bkg =1;
+     //cout << prob_bkg << endl;
+     prob_idx[particlesReduced[ic].user_index()]+=-2*log(prob_bkg);
+    }
+     prob_idx[particlesReduced[ic].user_index()] = abs(prob_idx[particlesReduced[ic].user_index()]);
   }
 
   //sort according to their probability values
@@ -292,15 +363,13 @@ std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
 
   //create final UE object
   //----------------------------------------------------------
-      //  fjJetParticles_.clear();
+
             for(auto userIndex : ish) {
-          //for (int i=0; i<)
-          //  if(ijet==0)  cout << userIndex<<endl;
+
             fastjet::PseudoJet part = particlesReduced[userIndex];
              if(maxPtCurrent<=pTbkg_estimate) { //assign as bkgd particle
                 maxPtCurrent+=part.pt();
-            //    if(ijet==0) cout << part.pt() << endl;
-          //       if (ijet==0) std::cout << "Final UE: Added new particle with pt = " << part.phi() <<  " iparticle: " << userIndex << " to init condition. total pt now " << curPtFinalUE << "/" << maxPtFinalUE << endl;
+
                 BkgParticles.push_back(part);
               }
              else {
