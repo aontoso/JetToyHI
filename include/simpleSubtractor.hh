@@ -11,6 +11,8 @@
 #include <numeric>
 #include "TH1.h"
 #include "TROOT.h"
+#include "TGraph.h"
+#include "TCanvas.h"
 
 
 #include "fastjet/PseudoJet.hh"
@@ -121,6 +123,8 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
         nparticles_bkg++;
      }
    } // bkgd_jets loop
+
+     maxpt_bkgd = 6;
 
     int nbins_bkg = 10;
     TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
@@ -289,7 +293,8 @@ double deltarmax = h_deltar_constituents->GetBinCenter(nbins_bkg_deltar)+binWidt
 //----------------------------------------------------------
 std::vector<double> prob_idx(particlesReduced.size(),0);
 std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
-
+//Double_t pbkg_momentum[particlesReduced.size()];
+//Double_t pbkg_theta[particlesReduced.size()];
 // One loop for the momentum
 //------------------------------------------------------------------------
   for(int ic = 0; ic<(int)particlesReduced.size(); ++ic) {
@@ -316,9 +321,11 @@ std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
      double prob_bkg = candidate_pt_prob/random_prob;
      if (prob_bkg>1) prob_bkg =1;
      //cout << prob_bkg << endl;
-     prob_idx[particlesReduced[ic].user_index()]= -2*log(prob_bkg);
+     prob_idx[particlesReduced[ic].user_index()]=-2*log(prob_bkg);
     }
     prob_idx[particlesReduced[ic].user_index()] = abs(prob_idx[particlesReduced[ic].user_index()]);
+  //  pbkg_momentum[ic]=prob_idx[particlesReduced[ic].user_index()];
+    //if(ijet==0) cout << pbkg_momentum[ic] << endl;
   }
 
   // One loop for the angle
@@ -340,45 +347,56 @@ std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
 
    if (candidate_deltar_prob >= upper_limit){ //When the signal+background is below the background
     prob_idx[particlesReduced[ic].user_index()]=1;
+  //  pbkg_theta[ic]=1;
    }
    else{
      std::uniform_real_distribution<double> distPt(0., upper_limit);
 
      double random_prob = distPt(rndSeed);
      double prob_bkg = candidate_deltar_prob/random_prob;
-     if (prob_bkg>1) prob_bkg =1;
-     //cout << prob_bkg << endl;
-     prob_idx[particlesReduced[ic].user_index()]+=-2*log(prob_bkg);
+     if (prob_bkg>1) prob_bkg = 1;
+//     if(ijet ==0 )cout << prob_bkg << endl;
+     prob_idx[particlesReduced[ic].user_index()]+= -2*log(prob_bkg);
+  //   pbkg_theta[ic]=abs(prob_bkg);
     }
+  //  if(ijet ==0 )cout << pbkg_theta[ic] << endl;
      prob_idx[particlesReduced[ic].user_index()] = abs(prob_idx[particlesReduced[ic].user_index()]);
   }
 
+  //  if (ijet==0) {
+
+//      TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
+//           TGraph *correlation_ = new TGraph(particlesReduced.size(),pbkg_theta, pbkg_momentum);
+//           correlation_->SetMarkerSize(1.4);
+//           correlation_->SetMarkerStyle(20);
+//           correlation_->Draw("AP");
+//           c1->SaveAs("Prueba_3.C");
+//    }
   //sort according to their probability values
   //----------------------------------------------------------
   // initialize original index locations
   std::vector<size_t> ish(prob_idx.size());
   iota(ish.begin(), ish.end(), 0);
   std::sort(ish.begin(), ish.end(),
-            [&prob_idx](size_t i1, size_t i2) {return prob_idx[i1] > prob_idx[i2];});
-
+            [&prob_idx](size_t i1, size_t i2) {return prob_idx[i1] < prob_idx[i2];});
+// For Fisher method one has to revert the order
   //create final UE object
   //----------------------------------------------------------
 
             for(auto userIndex : ish) {
-
-            fastjet::PseudoJet part = particlesReduced[userIndex];
+             fastjet::PseudoJet part = particlesReduced[userIndex];
              if(maxPtCurrent<=pTbkg_estimate) { //assign as bkgd particle
                 maxPtCurrent+=part.pt();
-
                 BkgParticles.push_back(part);
               }
              else {
-               notBkgParticles.push_back(part);}
+               notBkgParticles.push_back(part);
+             }
             }
             fjJetParticles_=notBkgParticles;
+
 } // end of the else sampling loop
  h_pt_constituents->Scale(1/pTbkg_estimate);
-
 
     if(fjJetParticles_.size()>0) {
     csJetSub = new fastjet::ClusterSequenceArea(fjJetParticles_, jet_defSub,    area_def_sub);
