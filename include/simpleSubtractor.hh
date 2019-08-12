@@ -100,29 +100,22 @@ fastjet::ClusterSequenceArea csSub(fjInputs_, jet_defSub, area_def_sub);
 // create what we need for the background estimation
 //----------------------------------------------------------
 
-fastjet::JetDefinition jet_estimate_bkgd(fastjet::antikt_algorithm, 0.4);
+fastjet::JetDefinition jet_estimate_bkgd(fastjet::kt_algorithm, 0.4);
 fastjet::AreaDefinition area_estimate_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
 fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4)*(!fastjet::SelectorNHardest(2));
 
 fastjet::ClusterSequenceArea csKt(fjInputs_, jet_estimate_bkgd, area_estimate_bkgd);
 std::vector<fastjet::PseudoJet> bkgd_jets = fastjet::sorted_by_pt(selector(csKt.inclusive_jets()));
 
+fastjet::JetDefinition jet_estimate_deltar(antikt_algorithm, 0.4);
+
+fastjet::ClusterSequenceArea csKt_deltar(fjInputs_, jet_estimate_deltar, area_estimate_bkgd);
+std::vector<fastjet::PseudoJet> bkgd_deltar_jets = fastjet::sorted_by_pt(selector(csKt_deltar.inclusive_jets()));
+
 
 double maxpt_bkgd = 0;
 int nparticles_bkg = 0;
 double total_pt_bkgd = 0;
-
-for(fastjet::PseudoJet& jet : bkgd_jets) {
-  std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
-    fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
-
- // Find the maximum-pt of the background
-   for(fastjet::PseudoJet p : particles) {
-        double momentum = p.pt();
-        if (momentum > maxpt_bkgd) maxpt_bkgd = momentum;
-        nparticles_bkg++;
-     }
-   } // bkgd_jets loop
 
      maxpt_bkgd = 6;
 
@@ -145,10 +138,48 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
 
   h_pt_constituents->Scale(1./((double)total_pt_bkgd)); //normalize
 
-
   double pt_binWidth = h_pt_constituents->GetBinWidth(0); // will use it later
   int nbins = h_pt_constituents->GetNbinsX();
   double ptmax = h_pt_constituents->GetBinCenter(nbins)+pt_binWidth/2;
+
+  double maxdeltar_bkgd = 0;
+
+  for(fastjet::PseudoJet& jet : bkgd_deltar_jets) {
+    std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
+      fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
+
+   // Find the maximum-pt of the background
+     for(fastjet::PseudoJet p : particles) {
+          double deltar = jet.delta_R(p);
+          if(p.pt()<maxpt_bkgd){
+          if (deltar > maxdeltar_bkgd) maxdeltar_bkgd = deltar;
+        }
+  //        nparticles_bkg++;
+       }
+     } // bkgd_jets loop
+  //
+   int nbins_bkg_deltar = 5;
+   TH1D *h_cone = (TH1D *)gROOT->FindObject("deltaR const");
+   delete h_cone;
+   TH1D *h_deltar_constituents = new TH1D("deltaR const", "deltaR const", nbins_bkg_deltar, 0.,maxdeltar_bkgd);
+
+  double binWidth_bkgd_deltaR = h_deltar_constituents->GetBinWidth(0);
+
+  for(fastjet::PseudoJet& jet : bkgd_deltar_jets) {
+
+    std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
+      fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
+      for(fastjet::PseudoJet p : particles) {
+          if(p.pt()<maxpt_bkgd)h_deltar_constituents->Fill(jet.delta_R(p));
+       }
+    }
+
+  //      cout << maxpt_bkgd << endl;
+  h_deltar_constituents->Scale(1./((double)h_deltar_constituents->GetEntries())); //normalize
+  double deltarmax = h_deltar_constituents->GetBinCenter(nbins_bkg_deltar)+binWidth_bkgd_deltaR/2;
+
+
+
   // Jet-by-jet subtraction
   //----------------------------------------------------------
   std::mt19937 rndSeed(rd_()); //rnd number generator seed
@@ -171,44 +202,14 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
       particles[i].set_user_index(i);
     }
 
-    double cone_rapidity = -jet.eta()+jetRParam_;
-    randomCones rigidcone(2, jetRParam_, cone_rapidity,maxpt_bkgd);
-    rigidcone.setInputParticles(fjInputs_);
-    std::vector<std::vector<double>> cones;
-    cones = rigidcone.run();
+  //  double cone_rapidity = -jet.eta()+jetRParam_;
+  //  randomCones rigidcone(2, jetRParam_, cone_rapidity,maxpt_bkgd);
+  //  rigidcone.setInputParticles(fjInputs_);
+  //  std::vector<std::vector<double>> cones;
+  //  cones = rigidcone.run();
 
 // Random cones constituents pT-spectrum
 //----------------------------------------------------------
-
-double maxdeltar_bkgd = 0;
-int nparticles_bkg = 0;
-
-for(int i = 0; i<cones.size(); i++) {
-// Find the maximum-deltaR of the background
-for(int j = 0; j<cones[i].size(); j++) {
-     double deltar = cones[i][j];
-     if (deltar > maxdeltar_bkgd) maxdeltar_bkgd = deltar;
-     nparticles_bkg++;
-  }
- } // random_cone loop
-//
- int nbins_bkg_deltar = 5;
- TH1D *h_cone = (TH1D *)gROOT->FindObject("deltaR const");
- delete h_cone;
- TH1D *h_deltar_constituents = new TH1D("deltaR const", "deltaR const", nbins_bkg_deltar, 0.,maxdeltar_bkgd);
-
-double binWidth_bkgd_deltaR = h_deltar_constituents->GetBinWidth(0);
-
-for(int i = 0; i<cones.size(); i++) {
-for(int j = 0; j<cones[i].size(); j++) {
-    double deltar = cones[i][j];
-    h_deltar_constituents->Fill(deltar);
- }
-}
-
-//      cout << maxpt_bkgd << endl;
-h_deltar_constituents->Scale(1./((double)h_deltar_constituents->GetEntries())); //normalize
-double deltarmax = h_deltar_constituents->GetBinCenter(nbins_bkg_deltar)+binWidth_bkgd_deltaR/2;
 
     // Create a new list of particles whose pT is below the bkg max Pt
      std::vector<fastjet::PseudoJet> particlesReduced;
@@ -346,7 +347,7 @@ std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
    double upper_limit = upper_limit_mean + upper_limit_error;
 
    if (candidate_deltar_prob >= upper_limit){ //When the signal+background is below the background
-    prob_idx[particlesReduced[ic].user_index()]*=1;
+    prob_idx[particlesReduced[ic].user_index()]=1;
   //  pbkg_theta[ic]=1;
    }
    else{
@@ -356,22 +357,23 @@ std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
      double prob_bkg = candidate_deltar_prob/random_prob;
      if (prob_bkg>1) prob_bkg = 1;
 //     if(ijet ==0 )cout << prob_bkg << endl;
-     prob_idx[particlesReduced[ic].user_index()]*=1;
+     prob_idx[particlesReduced[ic].user_index()]*=prob_bkg;
   //   pbkg_theta[ic]=abs(prob_bkg);
     }
   //  if(ijet ==0 )cout << pbkg_theta[ic] << endl;
      prob_idx[particlesReduced[ic].user_index()] = abs(prob_idx[particlesReduced[ic].user_index()]);
   }
 
-  //  if (ijet==0) {
+    if (ijet==0) {
 
-//      TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
+      TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
+      h_deltar_constituents->Draw("HIST");
 //           TGraph *correlation_ = new TGraph(particlesReduced.size(),pbkg_theta, pbkg_momentum);
 //           correlation_->SetMarkerSize(1.4);
 //           correlation_->SetMarkerStyle(20);
 //           correlation_->Draw("AP");
-//           c1->SaveAs("Prueba_3.C");
-//    }
+           c1->SaveAs("Prueba_3.C");
+    }
   //sort according to their probability values
   //----------------------------------------------------------
   // initialize original index locations
