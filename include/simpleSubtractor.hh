@@ -150,6 +150,59 @@ double total_pt_bkgd = 0;
 //  double pt_binWidth = h_pt_constituents->GetBinWidth(0); // will use it later
 //  int nbins = h_pt_constituents->GetNbinsX();
 //  double ptmax = h_pt_constituents->GetBinCenter(nbins)+pt_binWidth/2;
+
+double maxdeltar_bkgd = 0.5;
+int nbins_bkg_deltar = 5;
+TH1D *h_cone = (TH1D *)gROOT->FindObject("deltaR const");
+delete h_cone;
+TH1D *h_deltar_constituents = new TH1D("deltaR const", "deltaR const", nbins_bkg_deltar, 0.,maxdeltar_bkgd);
+
+double binWidth_bkgd_deltaR = h_deltar_constituents->GetBinWidth(0);
+double cone_rapidity = -3+jetRParam_;
+double etaMax_ = cone_rapidity;
+double minPhi = 0.;
+double maxPhi = 2.*TMath::Pi();
+int nCones_= 10;
+TRandom3*rnd_ = new TRandom3(0);
+
+maxpt_bkgd = 6;
+
+int nbins_bkg = 10;
+TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
+delete h;
+TH1D *h_pt_constituents = new TH1D("p_{T} const", "p_{T} const", nbins_bkg, 0.,maxpt_bkgd);
+
+for(unsigned int i = 0; i<nCones_; ++i) {
+
+  //pick random position for random cone
+  double etaRC = rnd_->Rndm() * (etaMax_ - -1.*etaMax_) + -1.*etaMax_;
+  double phiRC = rnd_->Rndm() * (maxPhi - minPhi) + minPhi;
+  for(fastjet::PseudoJet part : fjInputs_) {
+    if(part.pt()<maxpt_bkgd){
+  //  double dr = deltaR(part.phi(),phiRC,part.eta(),etaRC);
+    double dPhi = part.phi() - phiRC;
+    double dEta =part.eta() - etaRC;
+    dPhi = TVector2::Phi_mpi_pi(dPhi);
+    double dr = TMath::Sqrt(dPhi * dPhi + dEta * dEta);
+    if(dr<jetRParam_) {
+      //std::cout << "phi: " << part.phi() << " " << phiRC << " eta: " << part.eta() << " " << etaRC << std::endl;
+      h_deltar_constituents->Fill(dr);
+      h_pt_constituents->Fill(part.pt(),part.pt());
+      total_pt_bkgd+=part.pt();
+  }
+    }
+  }
+}
+
+h_deltar_constituents->Scale(1./((double)h_deltar_constituents->GetEntries())); //normalize
+double deltarmax = h_deltar_constituents->GetBinCenter(nbins_bkg_deltar)+binWidth_bkgd_deltaR/2;
+
+h_pt_constituents->Scale(1./((double)total_pt_bkgd)); //normalize
+
+
+double pt_binWidth = h_pt_constituents->GetBinWidth(0); // will use it later
+int nbins = h_pt_constituents->GetNbinsX();
+double ptmax = h_pt_constituents->GetBinCenter(nbins)+pt_binWidth/2;
   // Jet-by-jet subtraction
   //----------------------------------------------------------
   std::mt19937 rndSeed(rd_()); //rnd number generator seed
@@ -173,58 +226,6 @@ double total_pt_bkgd = 0;
       particles[i].set_user_index(i);
     }
 
-    double maxdeltar_bkgd = 0.5;
-    int nbins_bkg_deltar = 5;
-    TH1D *h_cone = (TH1D *)gROOT->FindObject("deltaR const");
-    delete h_cone;
-    TH1D *h_deltar_constituents = new TH1D("deltaR const", "deltaR const", nbins_bkg_deltar, 0.,maxdeltar_bkgd);
-
-    double binWidth_bkgd_deltaR = h_deltar_constituents->GetBinWidth(0);
-    double cone_rapidity = -jet.eta()+jetRParam_;
-    double etaMax_ = cone_rapidity;
-    double minPhi = 0.;
-    double maxPhi = 2.*TMath::Pi();
-    int nCones_= 5;
-    TRandom3*rnd_ = new TRandom3(0);
-
-    maxpt_bkgd = 6;
-
-   int nbins_bkg = 10;
-   TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
-   delete h;
-   TH1D *h_pt_constituents = new TH1D("p_{T} const", "p_{T} const", nbins_bkg, 0.,maxpt_bkgd);
-
-    for(unsigned int i = 0; i<nCones_; ++i) {
-
-      //pick random position for random cone
-      double etaRC = rnd_->Rndm() * (etaMax_ - -1.*etaMax_) + -1.*etaMax_;
-      double phiRC = rnd_->Rndm() * (maxPhi - minPhi) + minPhi;
-      for(fastjet::PseudoJet part : fjInputs_) {
-        if(part.pt()<maxpt_bkgd){
-      //  double dr = deltaR(part.phi(),phiRC,part.eta(),etaRC);
-        double dPhi = part.phi() - phiRC;
-        double dEta =part.eta() - etaRC;
-        dPhi = TVector2::Phi_mpi_pi(dPhi);
-        double dr = TMath::Sqrt(dPhi * dPhi + dEta * dEta);
-        if(dr<jetRParam_) {
-          //std::cout << "phi: " << part.phi() << " " << phiRC << " eta: " << part.eta() << " " << etaRC << std::endl;
-          h_deltar_constituents->Fill(dr);
-          h_pt_constituents->Fill(part.pt(),part.pt());
-          total_pt_bkgd+=part.pt();
-      }
-        }
-      }
-    }
-
-    h_deltar_constituents->Scale(1./((double)h_deltar_constituents->GetEntries())); //normalize
-    double deltarmax = h_deltar_constituents->GetBinCenter(nbins_bkg_deltar)+binWidth_bkgd_deltaR/2;
-
-    h_pt_constituents->Scale(1./((double)total_pt_bkgd)); //normalize
-
-
-    double pt_binWidth = h_pt_constituents->GetBinWidth(0); // will use it later
-    int nbins = h_pt_constituents->GetNbinsX();
-    double ptmax = h_pt_constituents->GetBinCenter(nbins)+pt_binWidth/2;
 
   //  randomCones rigidcone(5, jetRParam_, cone_rapidity,maxpt_bkgd);
   //  rigidcone.setInputParticles(fjInputs_);
@@ -414,15 +415,16 @@ std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
      prob_idx[particlesReduced[ic].user_index()] = abs(prob_idx[particlesReduced[ic].user_index()]);
   }
 
-  //  if (ijet==0) {
+    if (ijet==0) {
 
-//      TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
+      TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
+      h_deltar_constituents->Draw("HIST");
 //           TGraph *correlation_ = new TGraph(particlesReduced.size(),pbkg_theta, pbkg_momentum);
 //           correlation_->SetMarkerSize(1.4);
 //           correlation_->SetMarkerStyle(20);
 //           correlation_->Draw("AP");
-//           c1->SaveAs("Prueba_3.C");
-//    }
+           c1->SaveAs("Prueba_3.C");
+    }
   //sort according to their probability values
   //----------------------------------------------------------
   // initialize original index locations
