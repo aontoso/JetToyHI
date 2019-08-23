@@ -50,6 +50,7 @@ private :
   std::vector<fastjet::PseudoJet> fjJetInputs_;
 
   std::vector<fastjet::PseudoJet> fjJetParticles_;
+  //std::vector<std::vector<fastjet::PseudoJet>> fSigParticles;
 
   std::random_device rd_;
 
@@ -86,7 +87,6 @@ std::vector<fastjet::PseudoJet> doSubtraction() {
 fastjet::GhostedAreaSpec ghost_spec(ghostRapMax_, 1, 0.001);
 fastjet::GhostedAreaSpec ghost_spec_sub(ghostRapMax_, 1, 1.);
 std::vector<fastjet::PseudoJet> jets = fjJetInputs_;
-
 // do the clustering with ghosts and get the jets
 //----------------------------------------------------------
 fastjet::JetDefinition jet_def(antikt_algorithm, jetRParam_);
@@ -96,17 +96,44 @@ fastjet::ClusterSequenceArea cs(fjInputs_, jet_def, area_def);
 fastjet::Selector jet_selector = SelectorAbsRapMax(jetRapMax_);
 jets = fastjet::sorted_by_pt(jet_selector(cs.inclusive_jets()));
 
-fastjet::JetDefinition jet_defSub(antikt_algorithm, 20.);
-fastjet::AreaDefinition area_def_sub = fastjet::AreaDefinition(fastjet::active_area_explicit_ghosts,ghost_spec_sub);
-fastjet::ClusterSequenceArea csSub(fjInputs_, jet_defSub, area_def_sub);
+/// create what we need for the background estimation
+//----------------------------------------------------------
 
-// create what we need for the background estimation with Random cones
-//----------------------------------------------------------------------
+fastjet::JetDefinition jet_estimate_bkgd(fastjet::kt_algorithm, 0.4);
+fastjet::AreaDefinition area_estimate_bkgd(fastjet::active_area_explicit_ghosts,ghost_spec);
+fastjet::Selector selector = fastjet::SelectorAbsRapMax(jetRapMax_-0.4)*(!fastjet::SelectorNHardest(2));
+
+fastjet::ClusterSequenceArea csKt(fjInputs_, jet_estimate_bkgd, area_estimate_bkgd);
+std::vector<fastjet::PseudoJet> bkgd_jets = fastjet::sorted_by_pt(selector(csKt.inclusive_jets()));
+
+   double total_pt_bkgd = 0;
+   double maxpt_bkgd = 6;
+   int nbins_bkg_pt = 5;
+   double total_area_bkgd = 0;
+
+    TH1D *h = (TH1D *)gROOT->FindObject("p_{T} const");
+    delete h;
+    TH1D *h_pt_constituents = new TH1D("p_{T} const", "p_{T} const", nbins_bkg_pt, 0.,maxpt_bkgd);
 
 
-  //TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
-  //h_bkg_constituents->Draw("LEGO");
-  //c1->SaveAs("Prueba_3.C");
+for(fastjet::PseudoJet& jet : bkgd_jets) {
+
+  std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
+    fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
+    for(fastjet::PseudoJet p : particles) {
+        h_pt_constituents->Fill(p.pt(),p.pt());
+         total_pt_bkgd+=p.pt();
+     }
+     total_area_bkgd+= jet.area();
+  }
+
+
+  h_pt_constituents->Scale(1./((double)total_pt_bkgd)*(double)total_area_bkgd); //normalize
+
+
+  double pt_binWidth = h_pt_constituents->GetBinWidth(0); // will use it later
+  int nbins = h_pt_constituents->GetNbinsX();
+  double ptmax = h_pt_constituents->GetBinCenter(nbins)+pt_binWidth/2;
 
   // Jet-by-jet subtraction
   //----------------------------------------------------------
@@ -131,72 +158,31 @@ fastjet::ClusterSequenceArea csSub(fjInputs_, jet_defSub, area_def_sub);
       particles[i].set_user_index(i);
     }
 
-
-    double total_pt_bkgd = 0;
-    double maxdeltar_bkgd = 0.5;
-    double maxpt_bkgd = 6;
-    int nbins_bkg_deltar = 5;
-    int nbins_bkg_pt = 10;
-    TH2D *h_bkg = (TH2D *)gROOT->FindObject("bkg const");
-    delete h_bkg;
-    TH2D *h_bkg_constituents = new TH2D("bkg const", "bkg const", nbins_bkg_deltar, 0.,maxdeltar_bkgd, nbins_bkg_pt, 0.,maxpt_bkgd);
-
-    double cone_rapidity = -3+jetRParam_;
-    double etaMax_ = cone_rapidity;
-    double minPhi = 0.;
-    double maxPhi = 2.*TMath::Pi();
-    int nCones_= 5;
-    TRandom3*rnd_ = new TRandom3(0);
-
-    for(unsigned int i = 0; i<nCones_; ++i) {
-
-      //pick random position for random cone
-      double etaRC = rnd_->Rndm() * (etaMax_ - -1.*etaMax_) + -1.*etaMax_;
-      double phiRC = rnd_->Rndm() * (maxPhi - minPhi) + minPhi;
-      for(fastjet::PseudoJet part : fjInputs_) {
-        if(part.pt()<maxpt_bkgd){
-      //  double dr = deltaR(part.phi(),phiRC,part.eta(),etaRC);
-        double dPhi = part.phi() - phiRC;
-        double dEta =part.eta() - etaRC;
-        dPhi = TVector2::Phi_mpi_pi(dPhi);
-        double dr = TMath::Sqrt(dPhi * dPhi + dEta * dEta);
-        if(dr<jetRParam_) {
-          h_bkg_constituents->Fill(dr,part.pt(),part.pt());
-          total_pt_bkgd+=part.pt();
-      }
-        }
-      }
-    }
-
-      h_bkg_constituents->Scale(1./((double)total_pt_bkgd)); //normalize
-
-
     // Create a new list of particles whose pT is below the bkg max Pt
-     std::vector<fastjet::PseudoJet> particlesReduced;
-    // Create a new list of particles whose pT is above the bkg max Pt and, therefore, considered to be signal
-     std::vector<fastjet::PseudoJet> signalParticles;
+  std::vector<fastjet::PseudoJet> particlesReduced;
+ // Create a new list of particles whose pT is above the bkg max Pt and, therefore, considered to be signal
+  std::vector<fastjet::PseudoJet> signalParticles;
 
     // Histogram to save the pT-information of each jet using the area
 
-     TH2D *h_jet = (TH2D *)gROOT->FindObject("const jet");
+     TH1D *h_jet = (TH1D *)gROOT->FindObject("p_{T} const jet");
      delete h_jet;
-     TH2D *h_constituents_jet = new TH2D("const jet", "const jet", nbins_bkg_deltar, 0.,maxdeltar_bkgd,nbins_bkg_pt,0.,maxpt_bkgd);
+     TH1D *h_pt_constituents_jet = new TH1D("p_{T} const jet", "p_{T} const jet", nbins_bkg_pt, 0.,maxpt_bkgd);
 
      double pT_reduced = 0; // pT stored by the particles below the bkg max Pt
      double patch_pT = 0; // total pT of the patch
 
-
      for(fastjet::PseudoJet p : particles) {
        double momentum = p.pt();
-       double deltar = jet.delta_R(p);
        patch_pT+=momentum;
-       if (momentum<=maxpt_bkgd && deltar<maxdeltar_bkgd){
+       if (momentum<=maxpt_bkgd){
+         h_pt_constituents_jet->Fill(momentum,momentum);
          particlesReduced.push_back(p);
          pT_reduced+=momentum;
-         h_constituents_jet->Fill(deltar, momentum, momentum);
        }
        else signalParticles.push_back(p);
     }
+
 
   for(int i = 0; i<(int)particlesReduced.size(); ++i) {
     particlesReduced[i].set_user_index(i);
@@ -207,33 +193,38 @@ fastjet::ClusterSequenceArea csSub(fjInputs_, jet_defSub, area_def_sub);
     if (abs(p.user_info<PU14>().vertex_number()) == 1) trueRho+=p.pt();
    }
 
-        double pTbkg_estimate = trueRho;
+    double pTbkg_estimate = trueRho;
 
-    fjJetParticles_.clear();
+
+    //fjJetParticles_.clear();
     std::uniform_real_distribution<double> particleSelect(0., particlesReduced.size());
 
     // Depending on the values of the background estimate, the total pT and the pT below the bkg max Pt we have 4 options
 
     if(pTbkg_estimate == 0){
-      fjJetParticles_ = particles;
+      for(fastjet::PseudoJet p : particles){
+       fjJetParticles_.push_back(p);
+     }
     }
     else if (pTbkg_estimate >= patch_pT)
         {
-          fjJetParticles_.clear();
+        //  fjJetParticles_.clear();
           median++;
 
         }
 
     else if (pTbkg_estimate >= pT_reduced)
        {
-      fjJetParticles_ = signalParticles;
+      for(fastjet::PseudoJet p : signalParticles){
+        fjJetParticles_.push_back(p);
+      };
       reduced++;
        }
 
      else {
       sampling++;
 
-      h_bkg_constituents->Scale(pTbkg_estimate);
+      h_pt_constituents->Scale(pTbkg_estimate*jet.area());
       double maxPtCurrent = 0.;
       std::vector<fastjet::PseudoJet> notBkgParticles = signalParticles;
 
@@ -244,27 +235,26 @@ std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
 // One loop for the momentum
 //------------------------------------------------------------------------
   for(int ic = 0; ic<(int)particlesReduced.size(); ++ic) {
-   double candidate_pt = particlesReduced[ic].pt();
-   double candidate_deltar = jet.delta_R(particlesReduced[ic]);
-   int candidate_bin = h_bkg_constituents->FindFixBin(candidate_deltar,candidate_pt);
-   double candidate_mean = h_bkg_constituents->GetBinContent(candidate_bin);
-   if(candidate_mean==0) candidate_mean = (h_bkg_constituents->GetBinContent(candidate_bin+1)+h_bkg_constituents->GetBinContent(candidate_bin-1))/2;
+    double candidate_pt = particlesReduced[ic].pt();
+   int candidate_ptbin = int(candidate_pt*nbins/ptmax)+1;
+   double candidate_pt_mean = h_pt_constituents->GetBinContent(candidate_ptbin);
+   if(candidate_pt_mean==0) candidate_pt_mean = (h_pt_constituents->GetBinContent(candidate_ptbin+1)+h_pt_constituents->GetBinContent(candidate_ptbin-1))/2;
 
-   double candidate_error = h_bkg_constituents->GetBinError(candidate_bin);
-   double candidate_prob = candidate_mean + candidate_error;
+   double candidate_pt_error = h_pt_constituents->GetBinError(candidate_ptbin);
+   double candidate_pt_prob = candidate_pt_mean + candidate_pt_error;
 
-   double upper_limit_mean = h_constituents_jet->GetBinContent(candidate_bin);
-   double upper_limit_error = h_constituents_jet->GetBinError(candidate_bin);
+   double upper_limit_mean = h_pt_constituents_jet->GetBinContent(candidate_ptbin);
+   double upper_limit_error = h_pt_constituents_jet->GetBinError(candidate_ptbin);
    double upper_limit = upper_limit_mean + upper_limit_error;
 
-   if (candidate_prob >= upper_limit){ //When the signal+background is below the background
+   if (candidate_pt_prob >= upper_limit){ //When the signal+background is below the background
     prob_idx[particlesReduced[ic].user_index()]=1;
    }
    else{
      std::uniform_real_distribution<double> distPt(0., upper_limit);
 
      double random_prob = distPt(rndSeed);
-     double prob_bkg = candidate_prob/random_prob;
+     double prob_bkg = candidate_pt_prob/random_prob;
      if (prob_bkg>1) prob_bkg =1;
      prob_idx[particlesReduced[ic].user_index()]=prob_bkg;
     }
@@ -282,33 +272,55 @@ std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
   //create final UE object
   //----------------------------------------------------------
 
-            for(auto userIndex : ish) {
-             fastjet::PseudoJet part = particlesReduced[userIndex];
-             if(maxPtCurrent<=pTbkg_estimate) { //assign as bkgd particle
-                maxPtCurrent+=part.pt();
-                BkgParticles.push_back(part);
+        for(auto userIndex : ish) {
+          fastjet::PseudoJet part = particlesReduced[userIndex];
+          if(maxPtCurrent<=pTbkg_estimate) { //assign as bkgd particle
+              maxPtCurrent+=part.pt();
+              BkgParticles.push_back(part);
               }
              else {
                notBkgParticles.push_back(part);
-             }
+            //   if(ijet == 0) cout << "eo" << endl;
+              }
             }
-            fjJetParticles_=notBkgParticles;
+          //   if(ijet==0) cout << maxPtCurrent << pTbkg_estimate << endl;
+             for (fastjet::PseudoJet p : notBkgParticles){
+             fjJetParticles_.push_back(p);
+             }
 
+             if(maxPtCurrent>pTbkg_estimate && BkgParticles.size() > 1) {
+              double maxPtPrev = 0;
+              std::vector<fastjet::PseudoJet> initCondParticles;
+               for(int ic = 0; ic<BkgParticles.size()-1; ++ic) {
+                 initCondParticles.push_back(BkgParticles[ic]);
+                 maxPtPrev+=initCondParticles.at(ic).pt();
+               }
+          //     if(ijet ==0) cout << "Current: " << maxPtCurrent << "Prev: " << maxPtPrev << endl;
+               double distance_one = sqrt((pTbkg_estimate-maxPtCurrent)*(pTbkg_estimate-maxPtCurrent));
+               double distance_two = sqrt((pTbkg_estimate-maxPtPrev)*(pTbkg_estimate-maxPtPrev));
+
+               if (distance_one > distance_two) {
+             //    if(ijet==0) cout<<"yes"<< maxPtPrev<<endl;
+                 fjJetParticles_.push_back(BkgParticles[BkgParticles.size()-1]);
+              //   BkgParticles.pop_back();
+
+
+               }
+             }
 } // end of the else sampling loop
- h_bkg_constituents->Scale(1/pTbkg_estimate);
 
-    if(fjJetParticles_.size()>0) {
-    csJetSub = new fastjet::ClusterSequenceArea(fjJetParticles_, jet_defSub,    area_def_sub);
-      std::vector<fastjet::PseudoJet> jetSub = fastjet::sorted_by_pt(csJetSub->inclusive_jets());
-      if(jetSub[0].pt()>0.) subtracted_jets.push_back(jetSub[0]);
-      if(subtracted_jets.size()>0 && subtracted_jets.size()<2)
-      csJetSub->delete_self_when_unused();
-    //  if(ijet==0) cout << jetSub[0].pt() << endl;
-    }
+
+ h_pt_constituents->Scale(1/pTbkg_estimate);
+//   fSigParticles.push_back(fjJetParticles_);
   } // end of jets-loop
+  // cout << fjJetParticles_.size() << endl;
+   //fastjet::JetDefinition jet_defSub(antikt_algorithm, 0.4);
+   //fastjet::AreaDefinition area_def_sub = fastjet::AreaDefinition(fastjet::active_area_explicit_ghosts,ghost_spec_sub);
+   //fastjet::ClusterSequenceArea csSub(fjJetParticles_, jet_defSub, area_def_sub);
+   //subtracted_jets = fastjet::sorted_by_pt(selector(csSub.inclusive_jets()));;
 
-//  std::cout << "\n n subtracted jets: " << subtracted_jets.size() << "Number of jets: " << counter << "Sampling applied: " << sampling << "Median larger than pT" << median << "Reduced part too small: " << reduced << std::endl;
-  return subtracted_jets;
+//  std::cout << "\n n signal particles " << fjJetParticles_.size() << std::endl;
+  return fjJetParticles_;
 
 } // end of doSubtraction
 
