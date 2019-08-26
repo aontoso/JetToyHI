@@ -30,6 +30,7 @@ private :
    std::vector<std::vector<double>> zgs_;         // all the zg's in the algorithm
    std::vector<std::vector<double>> drs_;         // and the angles in the algorithm
    std::vector<std::vector<double>> pts_;         // and the angles in the algorithm
+   std::vector<std::vector<double>> masses_;         // and the mass in the algorithm
 
 public :
    softDropCounter(double z = 0.1, double beta = 0.0, double r0 = 0.4, double rcut = 0.1);
@@ -46,6 +47,8 @@ public :
    std::vector<std::vector<double>> calculateDeltaR();
    std::vector<std::vector<double>> calculateZg();
    std::vector<std::vector<double>> calculatekT();
+   std::vector<std::vector<double>> calculateMass();
+   std::vector<std::vector<double>> calculatepT();
 };
 
 softDropCounter::softDropCounter(double z, double beta, double r0, double rcut)
@@ -100,13 +103,14 @@ void softDropCounter::run()
          zgs_.push_back(vector<double>());
          drs_.push_back(vector<double>());
          pts_.push_back(vector<double>());
+         masses_.push_back(vector<double>());
          continue;
       }
 
       std::vector<fastjet::PseudoJet> particles, ghosts;
       fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
 
-      fastjet::JetDefinition jet_def(fastjet::cambridge_algorithm,999.);
+      fastjet::JetDefinition jet_def(fastjet::cambridge_algorithm,1.);
       fastjet::ClusterSequence cs(particles, jet_def);
       std::vector<fastjet::PseudoJet> tempJets = fastjet::sorted_by_pt(cs.inclusive_jets());
 
@@ -115,6 +119,7 @@ void softDropCounter::run()
          zgs_.push_back(vector<double>());
          drs_.push_back(vector<double>());
          pts_.push_back(vector<double>());
+         masses_.push_back(vector<double>());
          continue;
       }
 
@@ -124,6 +129,7 @@ void softDropCounter::run()
       std::vector<double> z;
       std::vector<double> dr;
       std::vector<double> pt;
+      std::vector<double> mass;
 
       while(CurrentJet.has_parents(Part1, Part2))
       {
@@ -146,10 +152,12 @@ void softDropCounter::run()
          double Threshold = zcut_ * std::pow(DeltaR / r0_, beta_);
 
          if(zg >= Threshold)   // yay
-         {
+         {  fastjet::PseudoJet transformedJet;
             z.push_back(zg);
             dr.push_back(DeltaR);
             pt.push_back(PT1+PT2);
+            transformedJet = fastjet::PseudoJet(Part1.px()+Part2.px(),Part1.py()+Part2.py(),Part1.pz()+Part2.pz(),Part1.E()+Part2.E());
+            mass.push_back(transformedJet.m());
          }
 
          if(PT1 > PT2)
@@ -161,6 +169,7 @@ void softDropCounter::run()
       zgs_.push_back(z);
       drs_.push_back(dr);
       pts_.push_back(pt);
+      masses_.push_back(mass);
    }
 }
 
@@ -252,5 +261,42 @@ std::vector<std::vector<double>> softDropCounter::calculatekT()
 
    return Result_five;
 }
+
+std::vector<std::vector<double>> softDropCounter::calculateMass()
+{
+   std::vector<std::vector<double>> Result_six;
+
+   for(int i = 0; i < (int)masses_.size(); i++)
+   {
+      std::vector<double> onejet_mass;
+      onejet_mass.reserve(masses_[i].size());
+      for(int j = 0; j < (int)masses_[i].size(); j++){
+         double mass = masses_[i][j];
+         onejet_mass.push_back(mass);
+       }
+      Result_six.push_back(onejet_mass);
+   }
+
+   return Result_six;
+}
+
+std::vector<std::vector<double>> softDropCounter::calculatepT()
+{
+   std::vector<std::vector<double>> Result_seven;
+
+   for(int i = 0; i < (int)pts_.size(); i++)
+   {
+      std::vector<double> onejet_pt;
+      onejet_pt.reserve(pts_[i].size());
+      for(int j = 0; j < (int)pts_[i].size(); j++){
+         double pt = pts_[i][j];
+         onejet_pt.push_back(pt);
+       }
+      Result_seven.push_back(onejet_pt);
+   }
+
+   return Result_seven;
+}
+
 
 #endif
