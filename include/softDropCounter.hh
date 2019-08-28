@@ -31,7 +31,7 @@ private :
    std::vector<std::vector<double>> drs_;         // and the angles in the algorithm
    std::vector<std::vector<double>> pts_;         // and the angles in the algorithm
    std::vector<std::vector<double>> masses_;         // and the mass in the algorithm
-
+   std::vector<std::vector<fastjet::PseudoJet>> nodes_4momenta_; // returns the sum of the daughters 4 momenta at every node
 public :
    softDropCounter(double z = 0.1, double beta = 0.0, double r0 = 0.4, double rcut = 0.1);
    void setZCut(double c);
@@ -49,6 +49,11 @@ public :
    std::vector<std::vector<double>> calculatekT();
    std::vector<std::vector<double>> calculateMass();
    std::vector<std::vector<double>> calculatepT();
+   std::vector<std::vector<fastjet::PseudoJet>> getDipole4momenta();
+   std::vector<std::vector<double>> getDipolePx();
+   std::vector<std::vector<double>> getDipolePy();
+   std::vector<std::vector<double>> getDipolePz();
+   std::vector<std::vector<double>> getDipoleE();
 };
 
 softDropCounter::softDropCounter(double z, double beta, double r0, double rcut)
@@ -104,6 +109,7 @@ void softDropCounter::run()
          drs_.push_back(vector<double>());
          pts_.push_back(vector<double>());
          masses_.push_back(vector<double>());
+         nodes_4momenta_.push_back(std::vector<fastjet::PseudoJet>());
          continue;
       }
 
@@ -120,6 +126,7 @@ void softDropCounter::run()
          drs_.push_back(vector<double>());
          pts_.push_back(vector<double>());
          masses_.push_back(vector<double>());
+         nodes_4momenta_.push_back(std::vector<fastjet::PseudoJet>());
          continue;
       }
 
@@ -130,6 +137,7 @@ void softDropCounter::run()
       std::vector<double> dr;
       std::vector<double> pt;
       std::vector<double> mass;
+      std::vector<fastjet::PseudoJet> node_4momenta;
 
       while(CurrentJet.has_parents(Part1, Part2))
       {
@@ -157,6 +165,7 @@ void softDropCounter::run()
             dr.push_back(DeltaR);
             pt.push_back(PT1+PT2);
             transformedJet = fastjet::PseudoJet(Part1.px()+Part2.px(),Part1.py()+Part2.py(),Part1.pz()+Part2.pz(),Part1.E()+Part2.E());
+            node_4momenta.push_back(transformedJet);
             mass.push_back(transformedJet.m());
          }
 
@@ -170,7 +179,91 @@ void softDropCounter::run()
       drs_.push_back(dr);
       pts_.push_back(pt);
       masses_.push_back(mass);
+      nodes_4momenta_.push_back(node_4momenta);
+
    }
+}
+
+std::vector<std::vector<fastjet::PseudoJet>> softDropCounter::getDipole4momenta()
+{
+
+   return nodes_4momenta_;
+}
+
+std::vector<std::vector<double>> softDropCounter::getDipolePx()
+{
+
+  std::vector<std::vector<double>> Result_three;
+
+  for(int i = 0; i < (int)zgs_.size(); i++)
+  {
+     std::vector<double> onejet_px;
+     onejet_px.reserve(zgs_[i].size());
+     for(int j = 0; j < (int)zgs_[i].size(); j++){
+        double px = nodes_4momenta_[i][j].px();
+        onejet_px.push_back(px);
+      }
+     Result_three.push_back(onejet_px);
+  }
+
+  return Result_three;
+}
+
+std::vector<std::vector<double>> softDropCounter::getDipolePy()
+{
+
+  std::vector<std::vector<double>> Result_three;
+
+  for(int i = 0; i < (int)zgs_.size(); i++)
+  {
+     std::vector<double> onejet_py;
+     onejet_py.reserve(zgs_[i].size());
+     for(int j = 0; j < (int)zgs_[i].size(); j++){
+        double py = nodes_4momenta_[i][j].py();
+        onejet_py.push_back(py);
+      }
+     Result_three.push_back(onejet_py);
+  }
+
+  return Result_three;
+}
+
+std::vector<std::vector<double>> softDropCounter::getDipolePz()
+{
+
+  std::vector<std::vector<double>> Result_three;
+
+  for(int i = 0; i < (int)zgs_.size(); i++)
+  {
+     std::vector<double> onejet_pz;
+     onejet_pz.reserve(zgs_[i].size());
+     for(int j = 0; j < (int)zgs_[i].size(); j++){
+        double pz = nodes_4momenta_[i][j].pz();
+        onejet_pz.push_back(pz);
+      }
+     Result_three.push_back(onejet_pz);
+  }
+
+  return Result_three;
+}
+
+std::vector<std::vector<double>> softDropCounter::getDipoleE()
+{
+
+  std::vector<std::vector<double>> Result_three;
+
+  for(int i = 0; i < (int)zgs_.size(); i++)
+  {
+     std::vector<double> onejet_energy;
+     onejet_energy.reserve(zgs_[i].size());
+     for(int j = 0; j < (int)zgs_[i].size(); j++){
+        double energy = nodes_4momenta_[i][j].E();
+        onejet_energy.push_back(energy);
+      }
+     Result_three.push_back(onejet_energy);
+  }
+
+  return Result_three;
 }
 
 std::vector<double> softDropCounter::calculateNSD(double Kappa, double AngleKappa)
