@@ -4,10 +4,11 @@
 #include <vector>
 #include <algorithm> // std::min_element
 #include <iterator>
+#include <tuple>
 
 void timeDrop(){
 
-TFile *file = TFile::Open("/Users/albasotoontoso/Work/Jet_substraction/JetToyHI/TimeDrop/JetToyHIResultSD_PYTHIA_pp_13TeV_partonLevel_recursive_ps_timeDrop.root");
+TFile *file = TFile::Open("/Users/albasotoontoso/Work/Jet_substraction/JetToyHI/TimeDrop/JetToyHIResultSD_PYTHIA_pp_13TeV_hadronLevel_MPIoff_ISRoff_recursive_ps_timeDrop.root");
 TTree *treef = (TTree *)file->Get("jetTree");
 Long64_t nevents_pp = treef->GetEntriesFast();
 
@@ -21,6 +22,7 @@ TH1D* h_mass_sd = new TH1D("mass spectrum sd", "mass spectrum sd", 50., -10. ,0.
 
 TH1D* h_mass_tag = new TH1D("mass spectrum tag", "mass spectrum tag", 50., -6. ,0.);
 TH1D* h_mass_recursive = new TH1D("mass spectrum recur", "mass spectrum recur", 50., -12. ,0.);
+TH1D* h_mass_infinity = new TH1D("mass spectrum inf", "mass spectrum inf", 50., -12. ,0.);
 
 TH1I* h_ntot = new TH1I("ntot pp", "ntot pp", 20., 0.,20.);
 
@@ -120,6 +122,8 @@ if(n_splittings>0){
         int jjmin = -1;
         h_ntot->Fill(n_splittings);
         int nsd_pp = 0;
+        tuple <double, int> trial;
+        std::vector<tuple<double, int>> tf_and_j;
        for(int j=0; j<n_splittings; j++){
       //   cout << deltaR->at(i).at(j) << endl;
        double formation_time = tf->at(i).at(j)/factorR2;
@@ -128,7 +132,8 @@ if(n_splittings>0){
        double keiti = kt->at(i).at(j)*factorR;
        double piti = pt->at(i).at(j);
        double combo = momentum_share*(1-momentum_share)*piti;
-       std::vector<std::vector<double>> tf_and_j; 
+       trial = make_tuple(formation_time, j);
+       tf_and_j.push_back(trial);
        if(formation_time < min_formation_time) {
          //next_to_shortest = min_formation_time;
          min_formation_time = formation_time;
@@ -144,19 +149,66 @@ if(n_splittings>0){
        }
     } // Loop over splittings
 
-  //  cout << jmin << endl;
+    //Sort the  list of tuples in formation time keeping the original position in the CA declustering fixed
+    std::vector<int> accepted_branches;
+    sort(tf_and_j.begin(), tf_and_j.end());
+    if(n_splittings > 0) {int deltar_maximal = get<1>(tf_and_j[0]);
+    accepted_branches.push_back(deltar_maximal);
+  //  if (tf_and_j.size() > 0){
+    // cout << deltar_maximal << endl;
+     for (int i = 0; i < tf_and_j.size(); i++) {
+         int deltar_subsequent = get<1>(tf_and_j[i]);
+         if(deltar_subsequent > deltar_maximal){ accepted_branches.push_back(deltar_subsequent);
+         deltar_maximal = deltar_subsequent;
+  //     cout << deltar_subsequent << endl;}
+     }
+   }
+ }
+      //  cout << accepted_branches.size() << endl;
+  //   if(i==1) cout<< accepted_branches.at(0) << accepted_branches.at(1)<<endl;
+     if(n_splittings>0){
+       double secondaries_energy = 0;
+       double secondaries_px = 0;
+       double secondaries_py = 0;
+       double secondaries_pz = 0;
+     for (int k = 0; k < accepted_branches.size(); k++){
+       int position = accepted_branches.at(k);
+       secondaries_energy+=dipoleE_s->at(i).at(position);
+       secondaries_px+=dipolepx_s->at(i).at(position);
+       secondaries_py+=dipolepy_s->at(i).at(position);
+       secondaries_pz+=dipolepz_s->at(i).at(position);
+   }
+   int position = accepted_branches.at(accepted_branches.size()-1);
+   double primary_energy = dipoleE_p->at(i).at(position);
+   double primary_px = dipolepx_p->at(i).at(position);
+   double primary_py = dipolepy_p->at(i).at(position);
+   double primary_pz = dipolepz_p->at(i).at(position);
+
+   double groomed_energy = primary_energy+secondaries_energy;
+   double groomed_px = primary_px+secondaries_px;
+   double groomed_py = primary_py+secondaries_py;
+   double groomed_pz = primary_pz+secondaries_pz;
+   double groomed_mass_dipole = sqrt(pow(groomed_energy,2)-pow(groomed_px,2)-pow(groomed_py,2)-pow(groomed_pz,2));
+   double rho_inf = pow(groomed_mass_dipole,2)/(pow(sigJetPt->at(i),2)*pow(factorR,2));
+  h_mass_infinity->Fill(log10(rho_inf));
+ }
+
+  //  cout << get<1>(tf_and_j[0]) << endl;
+  //  cout << get<1>(tf_and_j[1]) << endl;
+  //  cout << "jmin: " << jmin << endl;
    double next_to_shortest = 1e4;
     for(int j=jmin; j<n_splittings; j++){
        double formation_time = tf->at(i).at(j)/factorR2;
        double shortest_formation_time = tf->at(i).at(jmin)/factorR2;
-    //   double delta_shortest_tf = deltaR->at(i).at(jmin);
+       double delta_shortest_tf = deltaR->at(i).at(jmin);
 
-       if(formation_time < next_to_shortest && formation_time > shortest_formation_time) {
+     if(formation_time < next_to_shortest && formation_time > shortest_formation_time) {
        next_to_shortest = formation_time;
-      //   min_formation_time = formation_time;
+         min_formation_time = formation_time;
             jjmin = j;
        }
     }
+  //  cout << "jmjjminin: " << jjmin << endl;
     h_nsd->Fill(nsd_pp);
 //    cout << "Shortest formation time: "<< tf->at(i).at(jmin)/factorR2 << " Sp/slitting "<< jmin << endl;
   // cout << "Next-to-shortest formation time: "<< tf->at(i).at(jjmin)/factorR2 << " Splitting "<< jjmin << endl;
@@ -217,7 +269,7 @@ if(n_splittings>0){
   else groomed_mass_dipole=mass_subjets;
   double rho_recu = pow(groomed_mass_dipole,2)/(pow(sigJetPt->at(i),2)*pow(factorR,2));
     h_mass_recursive->Fill(log10(rho_recu));
-  //  cout << "Subjets" << pow(mass_subjets,2) << "Groomed" << groomed_mass_dipole << endl;
+  //  cout << "Subjets" << mass_subjets << "Groomed" << groomed_mass_dipole << endl;
         //  cout << groomed_mass_dipole << endl;
   //  double mass_dipole = sqrt(pow(dipoleE->at(i).at(jmin),2)-pow(dipolepx->at(i).at(jmin),2)-pow(dipolepy->at(i).at(jmin),2)-pow(dipolepz->at(i).at(jmin),2));
 
@@ -254,7 +306,8 @@ if(n_splittings>0){
  h_mass_tag->Scale(1./(h_mass_tag->GetBinWidth(0)*njets_pp_above));
  h_mass_recursive->Sumw2();
  h_mass_recursive->Scale(1./(h_mass_recursive->GetBinWidth(0)*njets_pp_above));
-
+h_mass_infinity->Sumw2();
+h_mass_infinity->Scale(1./(h_mass_infinity->GetBinWidth(0)*njets_pp_above));
 
   TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 800, 600);
   Int_t azul;
@@ -334,7 +387,7 @@ if(n_splittings>0){
   h_mass_recursive->SetMarkerStyle(20);
   h_mass_recursive->SetMarkerSize(1.4);
 
-  h_mass_recursive->Draw("HIST");
+  h_mass_infinity->Draw("HIST");
   //h_mass_pp->Draw("SAME HIST");
   //h_mass_tag->Draw("SAME HIST");
 
