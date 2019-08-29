@@ -7,7 +7,7 @@
 
 void timeDrop(){
 
-TFile *file = TFile::Open("/Users/albasotoontoso/Work/Jet_substraction/JetToyHI/TimeDrop/JetToyHIResultSD_PYTHIA_pp_13TeV_partonLevel_recursive_timeDrop.root");
+TFile *file = TFile::Open("/Users/albasotoontoso/Work/Jet_substraction/JetToyHI/TimeDrop/JetToyHIResultSD_PYTHIA_pp_13TeV_partonLevel_recursive_ps_timeDrop.root");
 TTree *treef = (TTree *)file->Get("jetTree");
 Long64_t nevents_pp = treef->GetEntriesFast();
 
@@ -49,10 +49,14 @@ std::vector<std::vector<double>> * zg = 0;
 std::vector<std::vector<double>> * kt = 0;
 std::vector<std::vector<double>> * mass = 0;
 std::vector<std::vector<double>> * pt = 0;
-std::vector<std::vector<double>> * dipolepx = 0;
-std::vector<std::vector<double>> * dipolepy = 0;
-std::vector<std::vector<double>> * dipolepz = 0;
-std::vector<std::vector<double>> * dipoleE = 0;
+std::vector<std::vector<double>> * dipolepx_p = 0;
+std::vector<std::vector<double>> * dipolepy_p = 0;
+std::vector<std::vector<double>> * dipolepz_p = 0;
+std::vector<std::vector<double>> * dipoleE_p = 0;
+std::vector<std::vector<double>> * dipolepx_s = 0;
+std::vector<std::vector<double>> * dipolepy_s = 0;
+std::vector<std::vector<double>> * dipolepz_s = 0;
+std::vector<std::vector<double>> * dipoleE_s = 0;
 
 std::vector<double> * eventWeight = 0;
 std::vector<double> * nsd = 0;
@@ -77,10 +81,14 @@ treef->SetBranchAddress("zg",&zg);
 treef->SetBranchAddress("kt",&kt);
 treef->SetBranchAddress("mass", &mass);
 treef->SetBranchAddress("pt", &pt);
-treef->SetBranchAddress("dipolepx",&dipolepx);
-treef->SetBranchAddress("dipolepy",&dipolepy);
-treef->SetBranchAddress("dipolepz", &dipolepz);
-treef->SetBranchAddress("dipoleE", &dipoleE);
+treef->SetBranchAddress("dipolepx_p",&dipolepx_p);
+treef->SetBranchAddress("dipolepy_p",&dipolepy_p);
+treef->SetBranchAddress("dipolepz_p", &dipolepz_p);
+treef->SetBranchAddress("dipoleE_p", &dipoleE_p);
+treef->SetBranchAddress("dipolepx_s",&dipolepx_s);
+treef->SetBranchAddress("dipolepy_s",&dipolepy_s);
+treef->SetBranchAddress("dipolepz_s", &dipolepz_s);
+treef->SetBranchAddress("dipoleE_s", &dipoleE_s);
 
 treef->SetBranchAddress("eventWeight",&eventWeight);
 treef->SetBranchAddress("nsd",&nsd);
@@ -120,16 +128,12 @@ if(n_splittings>0){
        double keiti = kt->at(i).at(j)*factorR;
        double piti = pt->at(i).at(j);
        double combo = momentum_share*(1-momentum_share)*piti;
+       std::vector<std::vector<double>> tf_and_j; 
        if(formation_time < min_formation_time) {
          //next_to_shortest = min_formation_time;
          min_formation_time = formation_time;
         jmin = j;
        }
-      // else if (formation_time < next_to_shortest && formation_time != min_formation_time && deltaR->at(i).at(j) < deltaR->at(i).at(jmin)) {
-    //     cout << jmin << endl;
-        //     next_to_shortest = formation_time;
-        //     jjmin = j;
-      //     }
 
        if(keiti > max_kt) {max_kt = keiti;
        kmax = j;
@@ -186,23 +190,26 @@ if(n_splittings>0){
     //else{shorter_splitting = jmin+1;
     //  next_to_shorter_splitting = jjmin;
     //}
-    double intermediate_energy = 0;
-    double intermediate_px = 0;
-    double intermediate_py = 0;
-    double intermediate_pz = 0;
+  //  double intermediate_energy = 0;
+  //  double intermediate_px = 0;
+  //  double intermediate_py = 0;
+  //  double intermediate_pz = 0;
 
-    for(int k=shorter_splitting+1; k<next_to_shorter_splitting; k++){
-    intermediate_energy+=dipoleE->at(i).at(k);
-    intermediate_px+=dipolepx->at(i).at(k);
-    intermediate_py+=dipolepy->at(i).at(k);
-    intermediate_pz+=dipolepz->at(i).at(k);
-    }
+  //  for(int k=shorter_splitting+1; k<next_to_shorter_splitting; k++){
+  //  intermediate_energy+=dipoleE->at(i).at(k);
+  //  intermediate_px+=dipolepx->at(i).at(k);
+  //  intermediate_py+=dipolepy->at(i).at(k);
+  //  intermediate_pz+=dipolepz->at(i).at(k);
+  //  }
 
-    double groomed_energy = dipoleE->at(i).at(shorter_splitting)-intermediate_energy;
+    double groomed_energy = dipoleE_p->at(i).at(next_to_shorter_splitting)+dipoleE_s->at(i).at(next_to_shorter_splitting)+dipoleE_s->at(i).at(shorter_splitting);
+    double groomed_px = dipolepx_p->at(i).at(next_to_shorter_splitting)+dipolepx_s->at(i).at(next_to_shorter_splitting)+dipolepx_s->at(i).at(shorter_splitting);
+    double groomed_py = dipolepy_p->at(i).at(next_to_shorter_splitting)+dipolepy_s->at(i).at(next_to_shorter_splitting)+dipolepy_s->at(i).at(shorter_splitting);
+    double groomed_pz = dipolepz_p->at(i).at(next_to_shorter_splitting)+dipolepz_s->at(i).at(next_to_shorter_splitting)+dipolepz_s->at(i).at(shorter_splitting);
 //    cout << groomed_energy << endl;
-    double groomed_px = dipolepx->at(i).at(shorter_splitting)-intermediate_px;
-    double groomed_py = dipolepy->at(i).at(shorter_splitting)-intermediate_py;
-    double groomed_pz = dipolepz->at(i).at(shorter_splitting)-intermediate_pz;
+  //  double groomed_px = dipolepx->at(i).at(shorter_splitting)-intermediate_px;
+  //  double groomed_py = dipolepy->at(i).at(shorter_splitting)-intermediate_py;
+  //  double groomed_pz = dipolepz->at(i).at(shorter_splitting)-intermediate_pz;
   // cout << pow(groomed_energy,2)-pow(groomed_px,2)-pow(groomed_py,2)-pow(groomed_pz,2) << endl;
     groomed_mass_dipole = sqrt(pow(groomed_energy,2)-pow(groomed_px,2)-pow(groomed_py,2)-pow(groomed_pz,2));
 
@@ -311,23 +318,23 @@ if(n_splittings>0){
   TCanvas *c2 = new TCanvas ("c2", "c2", 65, 52, 800, 600);
 //  c2->SetLogy();
 //  c2->SetLogx();
-  h_mass_sd->GetXaxis()->SetTitle("log_{10}#rho");
-  h_mass_sd->GetYaxis()->SetTitle("#frac{1}{N_{jets}} #frac{dN}{dlog_{10}#rho}");
+  h_mass_recursive->GetXaxis()->SetTitle("log_{10}#rho");
+  h_mass_recursive->GetYaxis()->SetTitle("#frac{1}{N_{jets}} #frac{dN}{dlog_{10}#rho}");
 
-  h_mass_sd->SetTitle("");
-  h_mass_sd->GetYaxis()->SetLabelSize(0.04);
-  h_mass_sd->GetXaxis()->SetLabelSize(0.04);
-  h_mass_sd->GetYaxis()->SetTitleSize(0.06);
-  h_mass_sd->GetXaxis()->SetTitleSize(0.06);
+  h_mass_recursive->SetTitle("");
+  h_mass_recursive->GetYaxis()->SetLabelSize(0.04);
+  h_mass_recursive->GetXaxis()->SetLabelSize(0.04);
+  h_mass_recursive->GetYaxis()->SetTitleSize(0.06);
+  h_mass_recursive->GetXaxis()->SetTitleSize(0.06);
 //  h_mass_sd->SetStats(0);
   h_mass_sd->SetMarkerColor(azul);
   h_mass_sd->SetLineColor(rojo);
   h_mass_sd->SetLineColor(gris);
-  h_mass_sd->SetLineColor(azul);
-  h_mass_sd->SetMarkerStyle(20);
-  h_mass_sd->SetMarkerSize(1.4);
+  h_mass_recursive->SetLineColor(azul);
+  h_mass_recursive->SetMarkerStyle(20);
+  h_mass_recursive->SetMarkerSize(1.4);
 
-  h_mass_tag->Draw("HIST");
+  h_mass_recursive->Draw("HIST");
   //h_mass_pp->Draw("SAME HIST");
   //h_mass_tag->Draw("SAME HIST");
 
