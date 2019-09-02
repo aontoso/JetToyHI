@@ -8,7 +8,7 @@
 
 void timeDrop(){
 
-TFile *file = TFile::Open("/Users/albasotoontoso/Work/Jet_substraction/JetToyHI/TimeDrop/JetToyHIResultSD_PYTHIA_pp_13TeV_hadronLevel_MPIoff_ISRoff_recursive_ps_timeDrop.root");
+TFile *file = TFile::Open("/Users/albasotoontoso/Work/Jet_substraction/JetToyHI/TimeDrop/JetToyHIResultSD_PYTHIA_pp_13TeV_hadronLevel_recursive_ps_timeDrop.root");
 TTree *treef = (TTree *)file->Get("jetTree");
 Long64_t nevents_pp = treef->GetEntriesFast();
 
@@ -21,8 +21,6 @@ TH1D* h_mass_pp = new TH1D("mass spectrum pp", "mass spectrum pp", 50., -10. ,0.
 TH1D* h_mass_sd = new TH1D("mass spectrum sd", "mass spectrum sd", 50., -10. ,0.);
 
 TH1D* h_mass_tag = new TH1D("mass spectrum tag", "mass spectrum tag", 50., -6. ,0.);
-TH1D* h_mass_recursive = new TH1D("mass spectrum recur", "mass spectrum recur", 50., -12. ,0.);
-TH1D* h_mass_infinity = new TH1D("mass spectrum inf", "mass spectrum inf", 50., -12. ,0.);
 
 TH1I* h_ntot = new TH1I("ntot pp", "ntot pp", 20., 0.,20.);
 
@@ -75,7 +73,6 @@ treef->SetBranchAddress("sdJetPt",&sdJetPt);
 treef->SetBranchAddress("sdJetPhi",&sdJetPhi);
 treef->SetBranchAddress("sdJetM",&sdJetM);
 treef->SetBranchAddress("sdJetArea",&sdJetArea);
-//treef->SetBranchAddress("ndropped", &ndropped);
 
 treef->SetBranchAddress("tf",&tf);
 treef->SetBranchAddress("deltaR",&deltaR);
@@ -100,6 +97,10 @@ double ptcut = 450;
 double factorR2 = 0.8*0.8; // I have to divide because of how I created the tree
 double factorR = 0.8;
 
+// We define "a" as a power of theta that selects the variable that we want
+
+double a = 0; // timeDrop. if a=0 zDrop. if a=1 kTDrop.
+
 for (Long64_t k=0; k<nevents_pp; k++){ // Loop sobre el total de entradas del trees
       treef->GetEntry(k);
       njets_real_pp = sigJetPt->size();
@@ -112,183 +113,60 @@ for (Long64_t k=0; k<nevents_pp; k++){ // Loop sobre el total de entradas del tr
       //    cout << "Jet: " << i << endl;
 
 if(n_splittings>0){
-      double min_formation_time = 1e4;
-    //  double next_to_shortest = 1e4;
-      double max_kt = 0;
-      double max_combo = 0;
+       double min_drop_variable = 1e4;
         int jmin = -1;
-        int kmax = 0;
-        int cmax = 0;
-        int jjmin = -1;
+
         h_ntot->Fill(n_splittings);
         int nsd_pp = 0;
-        tuple <double, int> trial;
-        std::vector<tuple<double, int>> tf_and_j;
        for(int j=0; j<n_splittings; j++){
       //   cout << deltaR->at(i).at(j) << endl;
-       double formation_time = tf->at(i).at(j)/factorR2;
+       double delta_r = deltaR->at(i).at(j);
        double momentum_share = zg->at(i).at(j);
-       if(momentum_share>0.1) nsd_pp++;
-       double keiti = kt->at(i).at(j)*factorR;
        double piti = pt->at(i).at(j);
-       double combo = momentum_share*(1-momentum_share)*piti;
-       trial = make_tuple(formation_time, j);
-       tf_and_j.push_back(trial);
-       if(formation_time < min_formation_time) {
+       double drop_variable = 1/(momentum_share*(1-momentum_share)*piti*pow(delta_r,a));
+
+       if(drop_variable < min_drop_variable) {
          //next_to_shortest = min_formation_time;
-         min_formation_time = formation_time;
+         min_drop_variable = drop_variable;
         jmin = j;
        }
 
-       if(keiti > max_kt) {max_kt = keiti;
-       kmax = j;
-       }
-
-       if(combo > max_combo) {max_combo = combo;
-       cmax = j;
-       }
     } // Loop over splittings
 
-    //Sort the  list of tuples in formation time keeping the original position in the CA declustering fixed
-    std::vector<int> accepted_branches;
-    sort(tf_and_j.begin(), tf_and_j.end());
-    if(n_splittings > 0) {int deltar_maximal = get<1>(tf_and_j[0]);
-    accepted_branches.push_back(deltar_maximal);
-  //  if (tf_and_j.size() > 0){
-    // cout << deltar_maximal << endl;
-     for (int i = 0; i < tf_and_j.size(); i++) {
-         int deltar_subsequent = get<1>(tf_and_j[i]);
-         if(deltar_subsequent > deltar_maximal){ accepted_branches.push_back(deltar_subsequent);
-         deltar_maximal = deltar_subsequent;
-  //     cout << deltar_subsequent << endl;}
-     }
-   }
- }
-      //  cout << accepted_branches.size() << endl;
-  //   if(i==1) cout<< accepted_branches.at(0) << accepted_branches.at(1)<<endl;
-     if(n_splittings>0){
-       double secondaries_energy = 0;
-       double secondaries_px = 0;
-       double secondaries_py = 0;
-       double secondaries_pz = 0;
-     for (int k = 0; k < accepted_branches.size(); k++){
-       int position = accepted_branches.at(k);
-       secondaries_energy+=dipoleE_s->at(i).at(position);
-       secondaries_px+=dipolepx_s->at(i).at(position);
-       secondaries_py+=dipolepy_s->at(i).at(position);
-       secondaries_pz+=dipolepz_s->at(i).at(position);
-   }
-   int position = accepted_branches.at(accepted_branches.size()-1);
-   double primary_energy = dipoleE_p->at(i).at(position);
-   double primary_px = dipolepx_p->at(i).at(position);
-   double primary_py = dipolepy_p->at(i).at(position);
-   double primary_pz = dipolepz_p->at(i).at(position);
-
-   double groomed_energy = primary_energy+secondaries_energy;
-   double groomed_px = primary_px+secondaries_px;
-   double groomed_py = primary_py+secondaries_py;
-   double groomed_pz = primary_pz+secondaries_pz;
-   double groomed_mass_dipole = sqrt(pow(groomed_energy,2)-pow(groomed_px,2)-pow(groomed_py,2)-pow(groomed_pz,2));
-   double rho_inf = pow(groomed_mass_dipole,2)/(pow(sigJetPt->at(i),2)*pow(factorR,2));
-  h_mass_infinity->Fill(log10(rho_inf));
- }
-
-  //  cout << get<1>(tf_and_j[0]) << endl;
-  //  cout << get<1>(tf_and_j[1]) << endl;
-  //  cout << "jmin: " << jmin << endl;
-   double next_to_shortest = 1e4;
-    for(int j=jmin; j<n_splittings; j++){
-       double formation_time = tf->at(i).at(j)/factorR2;
-       double shortest_formation_time = tf->at(i).at(jmin)/factorR2;
-       double delta_shortest_tf = deltaR->at(i).at(jmin);
-
-     if(formation_time < next_to_shortest && formation_time > shortest_formation_time) {
-       next_to_shortest = formation_time;
-         min_formation_time = formation_time;
-            jjmin = j;
-       }
-    }
-  //  cout << "jmjjminin: " << jjmin << endl;
     h_nsd->Fill(nsd_pp);
-//    cout << "Shortest formation time: "<< tf->at(i).at(jmin)/factorR2 << " Sp/slitting "<< jmin << endl;
-  // cout << "Next-to-shortest formation time: "<< tf->at(i).at(jjmin)/factorR2 << " Splitting "<< jjmin << endl;
-  //  cout << jjmin << endl;
-  //  cout << tf->at(i).at(jmin)/factorR2 << endl;
-
-    double delta_shortest_tf = deltaR->at(i).at(jmin);
-    //if(delta_shortest_tf < deltaR->at(i).at(jjmin))cout << "j" << delta_shortest_tf << "jj" << deltaR->at(i).at(jjmin) << endl;
-  //  cout << "Next-to-shortest formation time: " << deltaR->at(i).at(jjmin) << endl;
+    //////////////////////////////////////////////////////////////////
+    // Compute the Lund plane
+    ///////////////////////////////////////////////////////////////////
+    double deltar_shortest_drop_variable = deltaR->at(i).at(jmin);
+    double kt_shortest_drop_variable = kt->at(i).at(jmin)*factorR;
     int ndropped = 0;
     for(int j=0; j<n_splittings; j++){
 
-     if(deltaR->at(i).at(j) > delta_shortest_tf) ndropped++;
+     if(deltaR->at(i).at(j) > deltar_shortest_drop_variable) ndropped++;
 
     }
-
     h_ndropped->Fill(ndropped);
-    h_lund->Fill(log(1/delta_shortest_tf),log(kt->at(i).at(jmin)*factorR));
-    double k_t = kt->at(i).at(jmin)*factorR;
+    h_lund->Fill(log(1/deltar_shortest_drop_variable),log(kt_shortest_drop_variable));
+
+    //////////////////////////////////////////////////////////////////
+    // Compute the plain, tagged and groomed mass
+    ///////////////////////////////////////////////////////////////////
+
     double momentum_share = zg->at(i).at(jmin);
     double mass_subjets = mass->at(i).at(jmin);
 
-    //////Recursive timeDrop///////////////
-    double groomed_mass_dipole = 0;
-    if(n_splittings>1 && jjmin >0){
-    int shorter_splitting = jmin;
-    int next_to_shorter_splitting = jjmin;
-  //  if(jmin > jjmin) {shorter_splitting = jjmin+1;
-    //  next_to_shorter_splitting = jmin;
-    //}
-    //else{shorter_splitting = jmin+1;
-    //  next_to_shorter_splitting = jjmin;
-    //}
-  //  double intermediate_energy = 0;
-  //  double intermediate_px = 0;
-  //  double intermediate_py = 0;
-  //  double intermediate_pz = 0;
-
-  //  for(int k=shorter_splitting+1; k<next_to_shorter_splitting; k++){
-  //  intermediate_energy+=dipoleE->at(i).at(k);
-  //  intermediate_px+=dipolepx->at(i).at(k);
-  //  intermediate_py+=dipolepy->at(i).at(k);
-  //  intermediate_pz+=dipolepz->at(i).at(k);
-  //  }
-
-    double groomed_energy = dipoleE_p->at(i).at(next_to_shorter_splitting)+dipoleE_s->at(i).at(next_to_shorter_splitting)+dipoleE_s->at(i).at(shorter_splitting);
-    double groomed_px = dipolepx_p->at(i).at(next_to_shorter_splitting)+dipolepx_s->at(i).at(next_to_shorter_splitting)+dipolepx_s->at(i).at(shorter_splitting);
-    double groomed_py = dipolepy_p->at(i).at(next_to_shorter_splitting)+dipolepy_s->at(i).at(next_to_shorter_splitting)+dipolepy_s->at(i).at(shorter_splitting);
-    double groomed_pz = dipolepz_p->at(i).at(next_to_shorter_splitting)+dipolepz_s->at(i).at(next_to_shorter_splitting)+dipolepz_s->at(i).at(shorter_splitting);
-//    cout << groomed_energy << endl;
-  //  double groomed_px = dipolepx->at(i).at(shorter_splitting)-intermediate_px;
-  //  double groomed_py = dipolepy->at(i).at(shorter_splitting)-intermediate_py;
-  //  double groomed_pz = dipolepz->at(i).at(shorter_splitting)-intermediate_pz;
-  // cout << pow(groomed_energy,2)-pow(groomed_px,2)-pow(groomed_py,2)-pow(groomed_pz,2) << endl;
-    groomed_mass_dipole = sqrt(pow(groomed_energy,2)-pow(groomed_px,2)-pow(groomed_py,2)-pow(groomed_pz,2));
-
-  }
-  else groomed_mass_dipole=mass_subjets;
-  double rho_recu = pow(groomed_mass_dipole,2)/(pow(sigJetPt->at(i),2)*pow(factorR,2));
-    h_mass_recursive->Fill(log10(rho_recu));
-  //  cout << "Subjets" << mass_subjets << "Groomed" << groomed_mass_dipole << endl;
-        //  cout << groomed_mass_dipole << endl;
-  //  double mass_dipole = sqrt(pow(dipoleE->at(i).at(jmin),2)-pow(dipolepx->at(i).at(jmin),2)-pow(dipolepy->at(i).at(jmin),2)-pow(dipolepz->at(i).at(jmin),2));
-
-    ////////////////////////////////////
     double theta= deltaR->at(i).at(jmin);
     double piti = pt->at(i).at(jmin);
     double mass_tagging = momentum_share*(1-momentum_share)*pow(piti,2)*pow(theta,2);
-//  double mass_tagging = mass->at(i).at(0);
     double rho_sd = pow(mass_subjets,2)/(pow(sigJetPt->at(i),2)*pow(factorR,2));
     double rho = pow(sigJetM->at(i),2)/(pow(sigJetPt->at(i),2)*pow(factorR,2));
     double rho_tag = mass_tagging/(pow(sigJetPt->at(i),2)*pow(factorR,2));
-  //  double rho_tag = mass_tagging/(pow(sigJetPt->at(i),2)*pow(factorR,2));
-  //  cout << log10(rho) << endl;
+
     h_mass_pp->Fill(log10(rho));
     h_mass_sd->Fill(log10(rho_sd));
     h_mass_tag->Fill(log10(rho_tag));
     h_zg_pp->Fill(momentum_share);
-  //  if(momentum_share<1e-4) cout << "eo" <<endl;
-//  }
+
   }
 
 } // close ptcut condition
@@ -304,10 +182,6 @@ if(n_splittings>0){
  h_mass_sd->Scale(1./(h_mass_sd->GetBinWidth(0)*njets_pp_above));
  h_mass_tag->Sumw2();
  h_mass_tag->Scale(1./(h_mass_tag->GetBinWidth(0)*njets_pp_above));
- h_mass_recursive->Sumw2();
- h_mass_recursive->Scale(1./(h_mass_recursive->GetBinWidth(0)*njets_pp_above));
-h_mass_infinity->Sumw2();
-h_mass_infinity->Scale(1./(h_mass_infinity->GetBinWidth(0)*njets_pp_above));
 
   TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 800, 600);
   Int_t azul;
@@ -371,33 +245,21 @@ h_mass_infinity->Scale(1./(h_mass_infinity->GetBinWidth(0)*njets_pp_above));
   TCanvas *c2 = new TCanvas ("c2", "c2", 65, 52, 800, 600);
 //  c2->SetLogy();
 //  c2->SetLogx();
-  h_mass_recursive->GetXaxis()->SetTitle("log_{10}#rho");
-  h_mass_recursive->GetYaxis()->SetTitle("#frac{1}{N_{jets}} #frac{dN}{dlog_{10}#rho}");
+  h_mass_sd->GetXaxis()->SetTitle("log_{10}#rho");
+  h_mass_sd->GetYaxis()->SetTitle("#frac{1}{N_{jets}} #frac{dN}{dlog_{10}#rho}");
 
-  h_mass_recursive->SetTitle("");
-  h_mass_recursive->GetYaxis()->SetLabelSize(0.04);
-  h_mass_recursive->GetXaxis()->SetLabelSize(0.04);
-  h_mass_recursive->GetYaxis()->SetTitleSize(0.06);
-  h_mass_recursive->GetXaxis()->SetTitleSize(0.06);
-//  h_mass_sd->SetStats(0);
+  h_mass_sd->SetTitle("");
+  h_mass_sd->GetYaxis()->SetLabelSize(0.04);
+  h_mass_sd->GetXaxis()->SetLabelSize(0.04);
+  h_mass_sd->GetYaxis()->SetTitleSize(0.06);
+  h_mass_sd->GetXaxis()->SetTitleSize(0.06);
   h_mass_sd->SetMarkerColor(azul);
-  h_mass_sd->SetLineColor(rojo);
-  h_mass_sd->SetLineColor(gris);
-  h_mass_recursive->SetLineColor(azul);
-  h_mass_recursive->SetMarkerStyle(20);
-  h_mass_recursive->SetMarkerSize(1.4);
 
-  h_mass_infinity->Draw("HIST");
-  //h_mass_pp->Draw("SAME HIST");
-  //h_mass_tag->Draw("SAME HIST");
+  h_mass_sd->SetLineColor(azul);
+  h_mass_sd->SetMarkerStyle(20);
+  h_mass_sd->SetMarkerSize(1.4);
 
-  //auto leg = new TLegend(0.6,0.6,0.75,0.75);
-
-  //  leg->AddEntry(h_mass_pp, "Plain", "l");
-  //  leg->AddEntry(h_mass_sd, "SD grooming mode", "l");
-  //  leg->AddEntry(h_mass_tag, "SD tagging mode", "l");
-  //  leg->SetTextSize(0.04);
-  //  leg->Draw();
+  h_mass_sd->Draw("HIST");
 
   pt2->Draw();
   pt1->Draw();
