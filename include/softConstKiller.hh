@@ -150,18 +150,24 @@ fastjet::AreaDefinition area_def_sub = fastjet::AreaDefinition(fastjet::active_a
     //    }
 
         double trueRho_escalar = 0;
+        double trueRho_m = 0;
          for(fastjet::PseudoJet p : particles_two) {
          if (abs(p.user_info<PU14>().vertex_number()) == 1) {
            trueRho_escalar+=p.pt();
+           trueRho_m+=sqrt(pow(p.m(),2)+pow(p.pt(),2))-p.pt();
         //   sum_x+=p.px();
         //   sum_y+=p.py();
          };
         }
       //  vectorialpT=sqrt(pow(sum_x,2)+pow(sum_y,2));
-        double bkg_estimate = 0;
-       if (jet.area()==0 || trueRho_escalar == 0) bkg_estimate = 0;
-       else bkg_estimate = trueRho_escalar/jet.area();
-      contrib::ConstituentSubtractor subtractor_(bkg_estimate, bkg_estimate);
+        double bkg_pt_estimate = 0;
+        double bkg_mass_estimate = 0;
+       if (jet.area()==0 || trueRho_escalar == 0) bkg_pt_estimate = 0;
+       else bkg_pt_estimate = trueRho_escalar/jet.area();
+
+       if (jet.area()==0 || trueRho_m == 0) bkg_mass_estimate = 0;
+       else bkg_mass_estimate = trueRho_m/jet.area();
+      contrib::ConstituentSubtractor subtractor_(bkg_pt_estimate, 0.);
       subtractor_.set_distance_type(contrib::ConstituentSubtractor::deltaR);
       subtractor_.set_max_distance(-1.); //free parameter for the maximal allowed distance between particle i and ghost k
       subtractor_.set_alpha(1.); // free parameter for the distance measure (the exponent of particle pt). Note that in older versions of the package alpha was multiplied by two but in newer versions this is not the case anymore
@@ -241,3 +247,4 @@ fastjet::AreaDefinition area_def_sub = fastjet::AreaDefinition(fastjet::active_a
 };
 
 #endif
+
