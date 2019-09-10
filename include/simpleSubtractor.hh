@@ -115,18 +115,26 @@ std::vector<fastjet::PseudoJet> bkgd_jets = fastjet::sorted_by_pt(selector(csKt.
     delete h;
     TH1D *h_pt_constituents = new TH1D("p_{T} const", "p_{T} const", nbins_bkg_pt, 0.,maxpt_bkgd);
 
-
+ std::vector<double> rhoMedian_bkgd;
+ double rho_Median = 0;
 for(fastjet::PseudoJet& jet : bkgd_jets) {
-
+  double rho_const = 0;
   std::vector<fastjet::PseudoJet> particles, ghosts; // make sure that the ghosts do not screw up the pt spectrum
     fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
     for(fastjet::PseudoJet p : particles) {
         h_pt_constituents->Fill(p.pt(),p.pt());
          total_pt_bkgd+=p.pt();
+         if(p.pt()<maxpt_bkgd)rho_const+=p.pt();
      }
      total_area_bkgd+= jet.area();
-  }
+     rhoMedian_bkgd.push_back(rho_const/jet.area());
+  } // bkgd jets loop
 
+  std::nth_element(rhoMedian_bkgd.begin(), rhoMedian_bkgd.begin() + rhoMedian_bkgd.size()/2, rhoMedian_bkgd.end());
+
+  rho_Median=rhoMedian_bkgd[rhoMedian_bkgd.size()/2];
+
+  //cout << rho_Median << endl;
 
   h_pt_constituents->Scale(1./(total_pt_bkgd*total_area_bkgd)); //normalize
 
@@ -191,9 +199,11 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
    double trueRho = 0;
     for(fastjet::PseudoJet p : particles) {
     if (abs(p.user_info<PU14>().vertex_number()) == 1) trueRho+=p.pt();
-   }
+    }
 
-    double pTbkg_estimate = trueRho;
+    double pTbkg_estimate = rho_Median*jet.area();
+  //  if(pTbkg_estimate > )  pTbkg_estimate = ;
+  //  cout << "True: " << trueRho << "Area Median: "<< pTbkg_estimate <<  endl;
 
 
     //fjJetParticles_.clear();
@@ -328,5 +338,6 @@ std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
 };
 
 #endif
+
 
 
