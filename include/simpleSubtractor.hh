@@ -126,6 +126,43 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
 
   rho_Median=rhoMedian_bkgd[rhoMedian_bkgd.size()/2];
 
+  double total_pt_bkgd = 0;
+  double maxdeltar_bkgd = 0.5;
+  double maxpt_bkgd = 6;
+  int nbins_bkg_deltar = 5;
+  int nbins_bkg_pt = 10;
+  TH2D *h_bkg = (TH2D *)gROOT->FindObject("bkg const");
+  delete h_bkg;
+  TH2D *h_bkg_constituents = new TH2D("bkg const", "bkg const", nbins_bkg_deltar, 0.,maxdeltar_bkgd, nbins_bkg_pt, 0.,maxpt_bkgd);
+
+  double cone_rapidity = -3+jetRParam_;
+  double etaMax_ = cone_rapidity;
+  double minPhi = 0.;
+  double maxPhi = 2.*TMath::Pi();
+  int nCones_= 5;
+  TRandom3*rnd_ = new TRandom3(0);
+
+  for(unsigned int i = 0; i<nCones_; ++i) {
+
+    //pick random position for random cone
+    double etaRC = rnd_->Rndm() * (etaMax_ - -1.*etaMax_) + -1.*etaMax_;
+    double phiRC = rnd_->Rndm() * (maxPhi - minPhi) + minPhi;
+    for(fastjet::PseudoJet part : fjInputs_) {
+      if(part.pt()<maxpt_bkgd){
+    //  double dr = deltaR(part.phi(),phiRC,part.eta(),etaRC);
+      double dPhi = part.phi() - phiRC;
+      double dEta = part.eta() - etaRC;
+      dPhi = TVector2::Phi_mpi_pi(dPhi);
+      double dr = TMath::Sqrt(dPhi * dPhi + dEta * dEta);
+      if(dr<jetRParam_) {
+        h_bkg_constituents->Fill(dr,part.pt(),part.pt());
+        total_pt_bkgd+=part.pt();
+    }
+      }
+    }
+  }
+
+    h_bkg_constituents->Scale(1./((double)total_pt_bkgd)); //normalize
 
   //TCanvas *c1 = new TCanvas ("c1", "c1", 65, 52, 1200, 800);
   //h_bkg_constituents->Draw("LEGO");
@@ -153,45 +190,6 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
     for(int i = 0; i<(int)particles.size(); ++i) {
       particles[i].set_user_index(i);
     }
-
-
-    double total_pt_bkgd = 0;
-    double maxdeltar_bkgd = 0.5;
-    double maxpt_bkgd = 6;
-    int nbins_bkg_deltar = 5;
-    int nbins_bkg_pt = 10;
-    TH2D *h_bkg = (TH2D *)gROOT->FindObject("bkg const");
-    delete h_bkg;
-    TH2D *h_bkg_constituents = new TH2D("bkg const", "bkg const", nbins_bkg_deltar, 0.,maxdeltar_bkgd, nbins_bkg_pt, 0.,maxpt_bkgd);
-
-    double cone_rapidity = -jet.eta()+jetRParam_;
-    double etaMax_ = cone_rapidity;
-    double minPhi = 0.;
-    double maxPhi = 2.*TMath::Pi();
-    int nCones_= 5;
-    TRandom3*rnd_ = new TRandom3(0);
-
-    for(unsigned int i = 0; i<nCones_; ++i) {
-
-      //pick random position for random cone
-      double etaRC = rnd_->Rndm() * (etaMax_ - -1.*etaMax_) + -1.*etaMax_;
-      double phiRC = rnd_->Rndm() * (maxPhi - minPhi) + minPhi;
-      for(fastjet::PseudoJet part : fjInputs_) {
-        if(part.pt()<maxpt_bkgd){
-      //  double dr = deltaR(part.phi(),phiRC,part.eta(),etaRC);
-        double dPhi = part.phi() - phiRC;
-        double dEta =part.eta() - etaRC;
-        dPhi = TVector2::Phi_mpi_pi(dPhi);
-        double dr = TMath::Sqrt(dPhi * dPhi + dEta * dEta);
-        if(dr<jetRParam_) {
-          h_bkg_constituents->Fill(dr,part.pt(),part.pt());
-          total_pt_bkgd+=part.pt();
-      }
-        }
-      }
-    }
-
-      h_bkg_constituents->Scale(1./((double)total_pt_bkgd)); //normalize
 
 
     // Create a new list of particles whose pT is below the bkg max Pt
@@ -245,7 +243,7 @@ for(fastjet::PseudoJet& jet : bkgd_jets) {
           fjJetParticles_.clear();
           median++;
 
-        } 
+        }
 
     else if (pTbkg_estimate >= pT_reduced)
        {
@@ -359,6 +357,7 @@ std::vector<fastjet::PseudoJet> BkgParticles(particlesReduced.size());
 };
 
 #endif
+
 
 
 
